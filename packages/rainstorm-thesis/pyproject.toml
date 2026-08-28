@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rainstorm-thesis"
+version = "0.1.0"
+description = "RAINSTORM thesis-domain adapters and STORM notebooks"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.25",
+    "pandas>=2.0",
+    "PyYAML>=6.0",
+    "scipy>=1.10",
+    "storm-traceable",
+    "tables>=3.9",
+]
+
+[project.optional-dependencies]
+vame = [
+    "matplotlib>=3.8",
+    "scikit-learn>=1.5",
+]
+kpms = [
+    "matplotlib>=3.8",
+    "scikit-learn>=1.5",
+]
+notebooks = [
+    "ipykernel>=6",
+    "jupyterlab>=4",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
+test = [
+    "pytest>=8",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["rainstorm_thesis"]
+
+[tool.pytest.ini_options]
+testpaths = ["../../tests"]
+
+[tool.uv.sources]
+storm-traceable = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling" }

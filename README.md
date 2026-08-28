@@ -41,6 +41,46 @@
 
 ## Installation 💾
 
+### UV environments
+
+This fork keeps the original supervised RAINSTORM stack isolated from the
+STORM-based thesis workflows.
+
+Use the root project for the original RAINSTORM notebooks and supervised ANN
+module:
+
+```bash
+uv sync --extra ui --extra supervised --extra notebooks
+```
+
+Use the STORM thesis subpackage for VAME/KPMS/supervised orchestration examples:
+
+```bash
+cd packages/rainstorm-thesis
+uv sync --extra notebooks --extra vame --extra kpms --extra test
+```
+
+The STORM notebooks live in `notebooks/storm_workflows/`:
+
+- `01_vame_storm_workflow.ipynb`
+- `02_kpms_storm_workflow.ipynb`
+- `03_supervised_storm_workflow.ipynb`
+
+The original conda environment remains available as a legacy installation path.
+
+Repository layout:
+
+- `src/rainstorm/backend/`: original processing, GUI backends, geometric analysis,
+  and supervised RAINSTORM implementation.
+- `src/rainstorm/frontend/`: frontend-facing entry points and visual tool
+  grouping.
+- `src/rainstorm/models/`: model-layer grouping for supervised and future
+  model adapters.
+- `notebooks/original/`: original RAINSTORM notebooks.
+- `notebooks/storm_workflows/`: STORM orchestration notebooks.
+- `packages/rainstorm-thesis/`: thesis-domain STORM package isolated from the
+  Python 3.9 supervised stack.
+
 ### Prerequisites
 
 First, ensure you have the following software installed on your system.
@@ -81,7 +121,7 @@ First, ensure you have the following software installed on your system.
     * Go to the Extensions view (`Ctrl+Shift+X` or `Cmd+Shift+X` on macOS).
     * Search for "Python" and install the official extension from Microsoft.
 
-    Open a Jupyter notebook (e.g., `2a-Prepare_positions.ipynb`).
+    Open a Jupyter notebook (e.g., `notebooks/original/2a-Prepare_positions.ipynb`).
     * When prompted to select a kernel, choose the `rainstorm` Conda environment from the list of `Python Environments`.
 
 You are all set! You can now run the notebooks to explore the RAINSTORM workflow.
@@ -96,13 +136,13 @@ Transform your data from raw videos to publication-ready results through our int
 
 | Step   | Notebook                      | Purpose                    | Output                            |
 | ------ | ----------------------------- | -------------------------- | --------------------------------- |
-| **0**  | `0-Video_handling.ipynb`      | 🎥 Prepare videos          | Trimmed, cropped, aligned videos  |
-| **1**  | `1-Behavioral_labeler.ipynb`  | ✍️ Manual annotation       | Frame-by-frame behavioral labels  |
-| **2a** | `2a-Prepare_positions.ipynb`  | 🧹 Clean tracking data     | Filtered, smoothed position files |
-| **2b** | `2b-Geometric_analysis.ipynb` | 📐 Geometric detection     | Rule-based behavioral labels      |
-| **3a** | `3a-Create_models.ipynb`      | 🤖 Train AI models         | Custom neural networks            |
-| **3b** | `3b-Automatic_analysis.ipynb` | 🧠 AI-powered labeling     | Automated behavioral detection    |
-| **4**  | `4-Seize_labels.ipynb`        | 📊 Results & visualization | Personalized plots & analyses        |
+| **0**  | `notebooks/original/0-Video_handling.ipynb`      | 🎥 Prepare videos          | Trimmed, cropped, aligned videos  |
+| **1**  | `notebooks/original/1-Behavioral_labeler.ipynb`  | ✍️ Manual annotation       | Frame-by-frame behavioral labels  |
+| **2a** | `notebooks/original/2a-Prepare_positions.ipynb`  | 🧹 Clean tracking data     | Filtered, smoothed position files |
+| **2b** | `notebooks/original/2b-Geometric_analysis.ipynb` | 📐 Geometric detection     | Rule-based behavioral labels      |
+| **3a** | `notebooks/original/3a-Create_models.ipynb`      | 🤖 Train AI models         | Custom neural networks            |
+| **3b** | `notebooks/original/3b-Automatic_analysis.ipynb` | 🧠 AI-powered labeling     | Automated behavioral detection    |
+| **4**  | `notebooks/original/4-Seize_labels.ipynb`        | 📊 Results & visualization | Personalized plots & analyses        |
 
 
 ---
@@ -111,7 +151,7 @@ Transform your data from raw videos to publication-ready results through our int
 
 We offer a quick and easy way to prepare videos for pose estimation and behavioral analysis.
 
-**Open the file `0-Video_handling.ipynb`**
+**Open the file `notebooks/original/0-Video_handling.ipynb`**
 
 1.  **Run the Video Handling app**
     This app allows you to:
@@ -135,7 +175,7 @@ We offer a quick and easy way to prepare videos for pose estimation and behavior
 
 For precise, frame-by-frame annotation, use the **RAINSTORM Behavioral Labeler**.
 
-**Open and run the file `1-Behavioral_labeler.ipynb`**
+**Open and run the file `notebooks/original/1-Behavioral_labeler.ipynb`**
 
 1.  **Select the video you want to label.**
 
@@ -155,7 +195,7 @@ For precise, frame-by-frame annotation, use the **RAINSTORM Behavioral Labeler**
 
 ### The RAINSTORM Pipeline 🔬
 
-#### `2a-Prepare_positions.ipynb`
+#### `notebooks/original/2a-Prepare_positions.ipynb`
 
 🧹 **Process and clean bodypart position data.**
 
@@ -167,7 +207,7 @@ For precise, frame-by-frame annotation, use the **RAINSTORM Behavioral Labeler**
 
 ---
 
-#### `2b-Geometric_analysis.ipynb`
+#### `notebooks/original/2b-Geometric_analysis.ipynb`
 
 📐 **Perform geometric labeling of exploration and freezing.**
 
@@ -180,7 +220,7 @@ For precise, frame-by-frame annotation, use the **RAINSTORM Behavioral Labeler**
 
 ---
 
-#### `3a-Create_Models.ipynb`
+#### `notebooks/original/3a-Create_Models.ipynb`
 
 ⚙️ **Train AI models for automatic behavioral labeling.**
 
@@ -193,7 +233,7 @@ For precise, frame-by-frame annotation, use the **RAINSTORM Behavioral Labeler**
 
 ---
 
-#### `3b-Automatic_analysis.ipynb`
+#### `notebooks/original/3b-Automatic_analysis.ipynb`
 
 🧠 **Automate labeling with your trained AI model.**
 
@@ -204,7 +244,7 @@ For precise, frame-by-frame annotation, use the **RAINSTORM Behavioral Labeler**
 
 ---
 
-#### `4-Seize_Labels.ipynb`
+#### `notebooks/original/4-Seize_Labels.ipynb`
 
 📊 **Extract, summarize, and visualize your final data.**
 

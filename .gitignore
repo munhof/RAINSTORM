@@ -10,10 +10,16 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+.venv/
+**/.venv/
 
 # PyInstaller
 *.spec
 *.toml
+!pyproject.toml
+!packages/**/pyproject.toml
+!uv.lock
+!packages/**/uv.lock
 
 # Big files
 examples/*
