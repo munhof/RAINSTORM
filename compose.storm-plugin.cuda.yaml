@@ -1,0 +1,13 @@
+services:
+  worker:
+    image: localhost/rainstorm-storm-worker:cuda
+    build:
+      context: ..
+      dockerfile: RAINSTORM/Containerfile.storm-worker.cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

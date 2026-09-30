@@ -27,6 +27,68 @@ def test_vame_worker_lock_is_scoped_to_linux_cpu_deployment():
     assert "UV_PYTHON_INSTALL_DIR=/opt/uv/python" in containerfile
 
 
+def test_cuda_worker_has_a_separate_cuda_lock_and_podman_gpu_overlay():
+    cuda_env = ROOT / "envs" / "vame_worker_cuda"
+    assert (cuda_env / "pyproject.toml").is_file()
+    assert (cuda_env / "uv.lock").is_file()
+
+    cuda_project = tomllib.loads(
+        (cuda_env / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    cuda_lock = tomllib.loads((cuda_env / "uv.lock").read_text(encoding="utf-8"))
+    cuda_torch = [package for package in cuda_lock["package"] if package["name"] == "torch"]
+    cpu_project = tomllib.loads(
+        (ROOT / "envs" / "vame_worker" / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert cuda_project["tool"]["uv"]["sources"]["torch"]["index"] == "pytorch-cu130"
+    assert cuda_torch[0]["version"].endswith("+cu130")
+    assert cuda_torch[0]["source"]["registry"] == "https://download.pytorch.org/whl/cu130"
+    assert cpu_project["tool"]["uv"]["sources"]["torch"]["index"] == "pytorch-cpu"
+
+    containerfile = (ROOT / "Containerfile.storm-worker.cuda").read_text(
+        encoding="utf-8"
+    )
+    compose = (ROOT / "compose.storm-plugin.cuda.yaml").read_text(encoding="utf-8")
+    assert "envs/vame_worker_cuda/uv.lock" in containerfile
+    assert "uv sync --locked" in containerfile
+    assert "driver: nvidia" in compose
+    assert "count: all" in compose
+    assert "capabilities: [gpu]" in compose
+
+
+def test_rocm_worker_has_a_separate_rocm_lock_and_podman_device_overlay():
+    rocm_env = ROOT / "envs" / "vame_worker_rocm"
+    assert (rocm_env / "pyproject.toml").is_file()
+    assert (rocm_env / "uv.lock").is_file()
+
+    rocm_project = tomllib.loads(
+        (rocm_env / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    rocm_lock = tomllib.loads((rocm_env / "uv.lock").read_text(encoding="utf-8"))
+    torch = [package for package in rocm_lock["package"] if package["name"] == "torch"]
+
+    assert rocm_project["tool"]["uv"]["sources"]["torch"]["index"] == "pytorch-rocm"
+    assert rocm_project["tool"]["uv"]["sources"]["triton"]["index"] == "pytorch-rocm"
+    assert "torch[device-gfx1103]==2.13.0+rocm10.0.0" in rocm_project["project"]["dependencies"]
+    assert torch[0]["version"].startswith("2.13.0+rocm10.0.0")
+    assert torch[0]["source"]["registry"].rstrip("/") == (
+        "https://stable.repo.amd.com/rocm/whl-next"
+    )
+
+    containerfile = (ROOT / "Containerfile.storm-worker.rocm").read_text(
+        encoding="utf-8"
+    )
+    compose = (ROOT / "compose.storm-plugin.rocm.yaml").read_text(encoding="utf-8")
+    assert "rocm10.0_ubuntu24.04_py3.12_pytorch_release_2.13.0" in containerfile
+    assert "uv sync --locked --inexact" in containerfile
+    assert "/dev/kfd:/dev/kfd" in compose
+    assert "/dev/dri:/dev/dri" in compose
+    assert 'group_add: ["keep-groups"]' in compose
+
+
 def test_pyproject_is_uv_ready_with_isolated_extras():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     storm_project = tomllib.loads(

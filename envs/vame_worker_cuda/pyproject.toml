@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rainstorm-vame-worker-cuda"
+version = "0.1.0"
+description = "Isolated CUDA STORM worker for RAINSTORM native and official VAME adapters."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "rainstorm-thesis[vame_native,vame_official]",
+    "storm-studio==0.1.0a0",
+    "torch>=2.11.0",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+required-version = "==0.11.8"
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+rainstorm-thesis = { path = "../../packages/rainstorm-thesis", editable = true }
+storm-studio = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio" }
+storm-traceable = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine", editable = true }
+torch = { index = "pytorch-cu130" }

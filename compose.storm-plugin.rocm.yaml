@@ -1,0 +1,10 @@
+services:
+  worker:
+    image: localhost/rainstorm-storm-worker:rocm
+    build:
+      context: ..
+      dockerfile: RAINSTORM/Containerfile.storm-worker.rocm
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add: ["keep-groups"]

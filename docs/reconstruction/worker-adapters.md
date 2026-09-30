@@ -44,6 +44,89 @@ El lock usa PyTorch CPU. VAME oficial guarda su proyecto bajo
 comparte la base de datos y los artefactos. Para volver al worker del compose,
 detené este proceso con `Ctrl+C` e iniciá de nuevo el overlay de Podman Compose.
 
+## Worker CUDA en una VM con Podman
+
+La variante CUDA conserva el worker CPU y usa su propio lock, imagen y overlay.
+En la VM instalá Podman, `podman-compose` con soporte para reservas GPU, el
+driver NVIDIA y NVIDIA Container Toolkit con CDI. La [guía de CDI de
+NVIDIA](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/cdi-support.html)
+describe la integración con Podman; `nvidia-ctk cdi list` debe mostrar la L4.
+El lock CUDA instala PyTorch `2.14.0+cu130`; el driver y la exposición del
+dispositivo corresponden al host. Como primera VM, `g2-standard-8` ofrece 8
+vCPU, 32 GB de RAM y una L4 de 24 GB ([tipos GPU de Compute
+Engine](https://docs.cloud.google.com/compute/docs/gpus)).
+
+Desde la raíz del checkout de STORM, levantá Studio y el worker CUDA:
+
+```bash
+podman-compose \
+  -f compose.yaml \
+  -f ../RAINSTORM/compose.storm-plugin.yaml \
+  -f ../RAINSTORM/compose.storm-plugin.cuda.yaml \
+  up -d --build
+```
+
+En la configuración del modelo `vame_native`, seleccioná `device: cuda`; el
+valor inicial del formulario sigue siendo `cpu`. El overlay entrega la GPU sólo
+al contenedor `worker`.
+
+El compose publica Studio únicamente en `127.0.0.1:8000`. Para abrirlo desde tu
+PC sin IP pública ni entrada directa al puerto 8000, permití SSH desde IAP en el
+firewall de la VM. Asigná `roles/iap.tunnelResourceAccessor` sobre esa VM y el
+permiso SSH correspondiente; si activás OS Login, usá `roles/compute.osLogin`.
+Google documenta la [regla de firewall y los permisos de IAP TCP
+forwarding](https://docs.cloud.google.com/iap/docs/using-tcp-forwarding). En tu
+PC, abrí el túnel:
+
+```bash
+gcloud compute ssh NOMBRE_VM --zone=ZONA --tunnel-through-iap -- \
+  -N -L 8000:127.0.0.1:8000
+```
+
+Después abrí <http://127.0.0.1:8000>. El túnel requiere la regla de firewall
+SSH desde `35.235.240.0/20`; no requiere una regla pública para el puerto 8000.
+
+## Worker ROCm en Arch Linux con Podman
+
+El host ya cuenta con `rocm-core`, `hip-runtime-amd` y `rocminfo` del repositorio
+oficial `Extra`; no hace falta reemplazarlos por paquetes AUR. El perfil ROCm
+mantiene PyTorch aislado dentro de un worker basado en la imagen AMD para ROCm
+10.0, con kernels `gfx1103` para la Radeon 780M. La imagen y el lock son
+independientes del worker CPU.
+
+Antes de levantarlo, comprobá que `rocminfo` enumere `gfx1103` y que existan
+`/dev/kfd` y `/dev/dri/renderD*`. En una instalación rootless, el overlay pasa
+los grupos suplementarios del host al worker (`keep-groups`); si el acceso a
+los dispositivos está restringido, agregá tu usuario a `render` y `video` y
+volvé a iniciar sesión. No hace falta instalar PyTorch ROCm en el Python del
+host.
+
+Desde la raíz del checkout de STORM, levantá Studio y el worker ROCm:
+
+```bash
+podman-compose \
+  -f compose.yaml \
+  -f ../RAINSTORM/compose.storm-plugin.yaml \
+  -f ../RAINSTORM/compose.storm-plugin.rocm.yaml \
+  up -d --build
+```
+
+La primera construcción descarga la imagen de AMD. Verificá que PyTorch vea el
+backend HIP y la GPU:
+
+```bash
+podman-compose \
+  -f compose.yaml \
+  -f ../RAINSTORM/compose.storm-plugin.yaml \
+  -f ../RAINSTORM/compose.storm-plugin.rocm.yaml \
+  exec worker python -c 'import torch; print(torch.__version__, torch.version.hip); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "GPU ROCm no disponible"); assert torch.version.hip and torch.cuda.is_available()'
+```
+
+En los planes de `vame_native`, configurá `device: cuda`: PyTorch usa esa API
+también para HIP/ROCm. La prueba del dispositivo debe pasar antes de iniciar el
+entrenamiento. La receta fija PyTorch `2.13.0+rocm10.0.0`, Triton y los paquetes
+de `gfx1103` publicados por AMD.
+
 ## Registrar y revisar datos
 
 En la revisión de Datos podés registrar archivos H5/CSV DLC, videos, JSON de

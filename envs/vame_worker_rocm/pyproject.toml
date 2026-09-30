@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rainstorm-vame-worker-rocm"
+version = "0.1.0"
+description = "ROCm STORM worker for RAINSTORM native and official VAME adapters."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "rainstorm-thesis[vame_native,vame_official]",
+    "storm-studio==0.1.0a0",
+    "torch[device-gfx1103]==2.13.0+rocm10.0.0",
+    "triton==3.8.0+git4cff872c.rocm10.0.0",
+    "rocm[libraries,device-gfx1103]==10.0.0",
+    "rocm-sdk-core==10.0.0",
+    "rocm-sdk-libraries==10.0.0",
+    "rocm-sdk-device-gfx1103==10.0.0",
+    "amd-torch-device-gfx1103==2.13.0+rocm10.0.0",
+    "amd-torch-device-gfx110x==2.13.0+rocm10.0.0",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+required-version = "==0.11.8"
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://stable.repo.amd.com/rocm/whl-next/"
+explicit = true
+
+[tool.uv.sources]
+rainstorm-thesis = { path = "../../packages/rainstorm-thesis", editable = true }
+storm-studio = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio" }
+storm-traceable = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine", editable = true }
+rocm = { index = "pytorch-rocm" }
+rocm-sdk-core = { index = "pytorch-rocm" }
+rocm-sdk-libraries = { index = "pytorch-rocm" }
+rocm-sdk-device-gfx1103 = { index = "pytorch-rocm" }
+amd-torch-device-gfx1103 = { index = "pytorch-rocm" }
+amd-torch-device-gfx110x = { index = "pytorch-rocm" }
+triton = { index = "pytorch-rocm" }
+torch = { index = "pytorch-rocm" }
