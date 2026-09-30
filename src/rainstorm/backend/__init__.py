@@ -1,10 +1,9 @@
-"""
-RAINSTORM - Real & Artificial Intelligence for Neuroscience
-Simple Tracker for Object Recognition Memory
+"""RAINSTORM backend public entry points."""
 
-A complete toolkit for analyzing rodent exploratory behavior in object recognition tasks.
-"""
 
-__version__ = "1.0.7"
-__author__ = "Santiago D'hers"
-__email__ = "sdhers@fbmc.fcen.uba.ar"
+def __getattr__(name):
+    # STORM is an optional Python 3.11+ runtime, separate from legacy Python 3.9.
+    if name == 'build_pose_pipeline':
+        from .pose_pipeline import build_pose_pipeline
+        return build_pose_pipeline
+    raise AttributeError(name)

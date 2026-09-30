@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "historical_reference_not_retraining_recipe",
+  "source": "Munho_Vital_Facundo_Nicolas_152_21_tesis_manuscrito.pdf, appendix D.4/D.5",
+  "models": {
+    "vame_native_pose_ego": {
+      "model_family": "vame_native",
+      "variant": "pose_ego",
+      "historical_parameters": {
+        "segmentation_algorithm": "kmeans",
+        "n_states": 50,
+        "latent_dim": 20,
+        "kld_weight": 0.5,
+        "epochs": 25,
+        "batch_size": 256
+      },
+      "reconstruction_status": "adapter_implemented_historical_data_retraining_not_verified"
+    },
+    "vame_official_ego_roi": {
+      "model_family": "vame_official",
+      "variant": "ego_roi",
+      "historical_parameters": {
+        "segmentation_algorithm": "kmeans",
+        "n_clusters": 50,
+        "max_epochs": 50,
+        "model_snapshot": 10,
+        "model_convergence": 10,
+        "time_window": 19,
+        "zdims": 10,
+        "pose_confidence": 0.6,
+        "learning_rate": 0.0005,
+        "batch_size": 32,
+        "center_reference_keypoint": "body",
+        "orientation_reference_keypoint": "nose"
+      },
+      "reconstruction_status": "adapter_implemented_historical_data_retraining_not_verified",
+      "interpretation": "Egocentric pose with contextual ROI analysis performed after pose modeling."
+    },
+    "example_simple": {
+      "path": "examples/models/trained_models/example_simple.keras",
+      "input_shape": [null, 12],
+      "output": "binary probability; threshold is a separately versioned decision",
+      "training_population": "unknown",
+      "training_recipe": "not present in supplied checkout",
+      "architecture": "Dense(32,16,8,1), binary cross-entropy, Adam 1e-4",
+      "architecture_status": "reconstructed weights reproduce saved model outputs",
+      "inference_status": "verified in isolated TensorFlow 2.10.1 environment"
+    },
+    "example_wide": {
+      "path": "examples/models/trained_models/example_wide.keras",
+      "input_shape": [null, 7, 12],
+      "output": "binary probability; threshold is a separately versioned decision",
+      "training_population": "unknown",
+      "training_recipe": "not present in supplied checkout",
+      "architecture": "causal Conv1D(32), BiLSTM(32,16,8), dense(8,4,1), binary cross-entropy, Adam 1e-5",
+      "architecture_status": "reconstructed weights reproduce saved model outputs",
+      "inference_status": "verified in isolated TensorFlow 2.10.1 environment"
+    }
+  }
+}

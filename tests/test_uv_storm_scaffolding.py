@@ -12,6 +12,21 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_vame_worker_lock_is_scoped_to_linux_cpu_deployment():
+    project = tomllib.loads(
+        (ROOT / "envs" / "vame_worker" / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert project["tool"]["uv"]["environments"] == ["sys_platform == 'linux'"]
+    assert project["tool"]["uv"]["sources"]["torch"]["index"] == "pytorch-cpu"
+    assert project["tool"]["uv"]["required-version"] == "==0.11.8"
+    containerfile = (ROOT / "Containerfile.storm-worker").read_text(encoding="utf-8")
+    assert "uv==0.11.8" in containerfile
+    assert "UV_PYTHON_INSTALL_DIR=/opt/uv/python" in containerfile
+
+
 def test_pyproject_is_uv_ready_with_isolated_extras():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     storm_project = tomllib.loads(

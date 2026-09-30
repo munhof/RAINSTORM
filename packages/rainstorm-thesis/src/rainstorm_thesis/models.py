@@ -8,32 +8,25 @@ from storm import ModelOutput
 
 
 class ExternalSegmentationModel:
-    """Traceable placeholder for an external VAME or KPMS adapter."""
+    """Unavailable external segmentation adapter.
+
+    Keep the public name for workflow migration compatibility, but fail closed:
+    this scaffold cannot produce scientific states or be ranked as a model.
+    """
 
     def __init__(self, config: Mapping[str, Any]) -> None:
-        self.model_family = str(config.get("model_family", "segmentation"))
+        self.model_family = str(config.get("model_family", "external segmentation"))
         self.variant = str(config.get("variant", "pose_base"))
         self.n_states = int(config.get("n_states", 12))
 
     def fit(self, inputs: Any, targets: Any = None) -> "ExternalSegmentationModel":
-        return self
+        raise NotImplementedError(
+            f"The {self.model_family} adapter is pending implementation; no model was fitted."
+        )
 
     def predict(self, inputs: Any) -> ModelOutput:
-        values = np.asarray(inputs, dtype=float)
-        if values.ndim != 2 or values.shape[0] == 0:
-            labels = np.array([], dtype=int)
-        else:
-            score = np.nan_to_num(values).sum(axis=1)
-            edges = np.quantile(score, np.linspace(0, 1, self.n_states + 1))
-            labels = np.digitize(score, edges[1:-1], right=False)
-        return ModelOutput(
-            predictions=labels.tolist(),
-            metadata={
-                "adapter": self.model_family,
-                "variant": self.variant,
-                "n_states": self.n_states,
-                "mode": "notebook-placeholder",
-            },
+        raise NotImplementedError(
+            f"The {self.model_family} adapter is pending implementation; no states were predicted."
         )
 
 

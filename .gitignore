@@ -27,3 +27,4 @@ examples/*
 # R files
 *.Rhistory
 *.RData
+docs/reconstruction/local-manifest.json

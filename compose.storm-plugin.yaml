@@ -1,0 +1,29 @@
+services:
+  studio:
+    environment:
+      STORM_PLUGINS: rainstorm_thesis.plugin
+      STUDIO_BRAND_NAME: RAINSTORM
+      STUDIO_BRAND_TAGLINE: Pose y análisis de conducta
+      RAINSTORM_SUPERVISED_PYTHON: /opt/workspace/RAINSTORM/supervised-runtime/bin/python
+      PYTHONPATH: /opt/storm/packages/storm-studio/src:/opt/storm/packages/storm-engine/src:/opt/rainstorm/packages/rainstorm-thesis/src:/opt/rainstorm/src
+    volumes:
+      - ../RAINSTORM/packages/rainstorm-thesis/src:/opt/rainstorm/packages/rainstorm-thesis/src:ro,Z
+      - ../RAINSTORM/src/rainstorm:/opt/rainstorm/src/rainstorm:ro,Z
+      - ../RAINSTORM/examples/models/trained_models:/opt/rainstorm/examples/models/trained_models:ro,Z
+  worker:
+    image: localhost/rainstorm-storm-worker:dev
+    build:
+      context: ..
+      dockerfile: RAINSTORM/Containerfile.storm-worker
+    environment:
+      STORM_PLUGINS: rainstorm_thesis.plugin
+      PYTHONPATH: /opt/workspace/RAINSTORM/src:/opt/workspace/RAINSTORM/packages/rainstorm-thesis/src:/opt/workspace/STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio/src:/opt/workspace/STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine/src
+      RAINSTORM_SUPERVISED_PYTHON: /opt/workspace/RAINSTORM/supervised-runtime/bin/python
+    volumes:
+      - ../RAINSTORM/packages/rainstorm-thesis/src:/opt/workspace/RAINSTORM/packages/rainstorm-thesis/src:ro,Z
+      - ../RAINSTORM/src/rainstorm:/opt/workspace/RAINSTORM/src/rainstorm:ro,Z
+      - ../RAINSTORM/examples/models/trained_models:/opt/workspace/RAINSTORM/examples/models/trained_models:ro,Z
+      - ../RAINSTORM/examples/models/trained_models:/opt/rainstorm/examples/models/trained_models:ro,Z
+      - ../RAINSTORM/examples/models/splits/split_example.h5:/opt/workspace/RAINSTORM/examples/models/splits/split_example.h5:ro,Z
+      - ../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine/src:/opt/workspace/STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine/src:ro,Z
+      - ../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio/src:/opt/workspace/STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio/src:ro,Z

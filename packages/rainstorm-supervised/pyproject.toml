@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rainstorm-supervised"
+version = "0.1.0"
+requires-python = ">=3.9,<3.10"
+dependencies = [
+    "tensorflow==2.10.1",
+    "keras==2.10.0",
+    "numpy==1.23.5",
+    "h5py==3.10.0",
+    "protobuf==3.19.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

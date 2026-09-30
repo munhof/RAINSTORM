@@ -116,3 +116,20 @@ def test_tensorflow_runtime_is_isolated_and_keeps_legacy_architecture():
         assert layer_name in architecture
     assert "Bidirectional" in architecture
     assert "LSTM" in architecture
+
+
+def test_temporal_pose_windows_stop_at_frame_discontinuities():
+    from storm import PipelineContext
+    from rainstorm.backend import build_pose_pipeline
+
+    positions = pd.DataFrame({
+        'nose_x':[10.0, 11.0, 50.0, 51.0], 'nose_y':[0.0]*4,
+        'body_x':[0.0]*4, 'body_y':[0.0]*4,
+    })
+    result = build_pose_pipeline(bodyparts=('nose','body'),
+        recenter_on='body', temporal_window=(1,1,1.0)).run(PipelineContext(
+            data=positions, metadata={'frames':[0,1,10,11], 'sessions':['s']*4,
+                'segments':['video']*4, 'partitions':['test']*4}))
+    assert result.data.shape == (4,3,4)
+    np.testing.assert_allclose(result.data[1,:,0], [10,11,11])
+    np.testing.assert_allclose(result.data[2,:,0], [50,50,51])
