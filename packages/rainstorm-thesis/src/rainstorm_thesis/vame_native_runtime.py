@@ -187,6 +187,15 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
                 1 + logvar - mu.square() - logvar.exp(), dim=1
             ))
             loss = reconstruction_loss + float(config["kld_weight"]) * kld_loss
+            if not bool(torch.isfinite(loss).item()):
+                message = f'Non-finite loss at epoch {epoch + 1}, batch {start // config["batch_size"] + 1}'
+                if progress_callback is not None:
+                    progress_callback({'phase': 'training', 'label': message, 'status': 'failed',
+                                       'failure_kind': 'nonfinite_loss', 'epoch': epoch + 1,
+                                       'batch_step': start // config['batch_size'] + 1,
+                                       'batch_total': ceil(len(order) / config['batch_size']),
+                                       'device': str(device), 'rnn_backend': config.get('rnn_backend', 'auto')})
+                raise FloatingPointError(message)
             loss.backward()
             optimizer.step()
             totals.append((float(loss.detach().cpu()),

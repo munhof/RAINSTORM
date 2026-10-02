@@ -1389,3 +1389,28 @@ def test_native_vame_resumes_legacy_checkpoint_with_explicit_auto_backend():
     assert len(resumed['labels']) == len(values)
     with pytest.raises(ValueError, match='incompatible'):
         train_native_vame(values, dict(config, rnn_backend='native'), resume_state=checkpoint)
+
+
+def test_native_vame_stops_before_backward_when_loss_is_nonfinite(monkeypatch):
+    pytest.importorskip('torch')
+    pytest.importorskip('sklearn')
+    import numpy as np
+    import torch
+    from rainstorm_thesis.vame_native_runtime import NativeVAMENetwork, train_native_vame
+    original = NativeVAMENetwork.forward
+    def nonfinite_forward(self, values, *, sample):
+        reconstruction, mu, logvar = original(self, values, sample=sample)
+        return reconstruction * float('inf'), mu, logvar
+    monkeypatch.setattr(NativeVAMENetwork, 'forward', nonfinite_forward)
+    def forbidden_step(*args, **kwargs):
+        pytest.fail('Optimizer must not consume a non-finite loss')
+    monkeypatch.setattr(torch.optim.Adam, 'step', forbidden_step)
+    config = dict(n_states=2, latent_dim=2, hidden_dim=4, epochs=1, batch_size=2,
+                  learning_rate=0.001, kld_weight=0.5, seed=7, device='cpu', num_threads=1)
+    events = []
+    with pytest.raises(FloatingPointError, match='epoch 1, batch 1'):
+        train_native_vame(np.ones((8, 3, 2), dtype=np.float32), config,
+                          progress_callback=events.append)
+    assert events[-1]['status'] == 'failed'
+    assert events[-1]['batch_step'] == 1
+    assert events[-1]['failure_kind'] == 'nonfinite_loss'
