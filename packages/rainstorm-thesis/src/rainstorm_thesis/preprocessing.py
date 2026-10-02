@@ -1,12 +1,27 @@
 from __future__ import annotations
 
-from math import atan2, cos, isfinite, pi, radians, sin
+from time import monotonic
+from math import ceil, atan2, cos, isfinite, pi, radians, sin
 
 from storm.pipeline import PipelineContext, PipelineStep
 
 
 POSE_GPU_MIN_ROWS = 32_768
 POSE_GPU_CHUNK_ROWS = 65_536
+
+
+def _report_pose_progress(context, completed, total, started, label):
+    callback = context.progress_callback
+    if callback is None or (completed not in (0, total) and completed % POSE_GPU_CHUNK_ROWS):
+        return
+    elapsed = max(0, monotonic() - started)
+    speed = completed / elapsed if completed and elapsed else None
+    callback({'label': label, 'device': 'cpu',
+              'batch_step': ceil(completed / POSE_GPU_CHUNK_ROWS),
+              'batch_total': ceil(total / POSE_GPU_CHUNK_ROWS),
+              'processed_observations': completed, 'total_observations': total,
+              'throughput': speed, 'batch_elapsed_seconds': elapsed,
+              'batch_eta_seconds': ceil((total - completed) / speed) if speed else None})
 
 
 def _pose_compute_device(requested: str, row_count: int) -> str:
@@ -249,8 +264,11 @@ class LikelihoodFilter(PipelineStep):
         frames = context.metadata.get("frames", list(range(len(values))))
         if any(len(item) != len(values) for item in (sessions, segments, frames)):
             raise ValueError("Pose boundary metadata must align with likelihood rows")
+        started = monotonic()
+        _report_pose_progress(context, 0, len(values), started, "Filtrando confianza de pose")
         last_good: dict[tuple[str, str, int], float] = {}
         for row_index in range(len(values)):
+            _report_pose_progress(context, row_index, len(values), started, "Filtrando confianza de pose")
             for part_index, (x_index, y_index) in enumerate(self.coordinate_pairs):
                 identity = (sessions[row_index], segments[row_index], part_index)
                 if confidence[row_index][part_index] >= self.threshold:
@@ -262,6 +280,7 @@ class LikelihoodFilter(PipelineStep):
                 else:
                     values[row_index][x_index] = values[previous][x_index]
                     values[row_index][y_index] = values[previous][y_index]
+        _report_pose_progress(context, len(values), len(values), started, "Filtrando confianza de pose")
         context.data = values
         return context
 
@@ -295,8 +314,11 @@ class TemporalPoseWindows(PipelineStep):
             if key in by_frame:
                 raise ValueError("Frame identity is duplicated inside a temporal partition")
             by_frame[key] = position
+        started = monotonic()
+        _report_pose_progress(context, 0, count, started, "Construyendo ventanas temporales")
         windows, centers, window_sources = [], [], []
         for center in range(count):
+            _report_pose_progress(context, center, count, started, "Construyendo ventanas temporales")
             positions = []
             for offset in self.offsets:
                 key = (sessions[center], segments[center], frames[center] + offset,
@@ -312,6 +334,7 @@ class TemporalPoseWindows(PipelineStep):
             windows.append([values[position] for position in positions])
             centers.append(observation_indices[center])
             window_sources.append([observation_indices[position] for position in positions])
+        _report_pose_progress(context, count, count, started, "Construyendo ventanas temporales")
         context.data = windows
         context.metadata["observation_indices"] = centers
         context.metadata["window_source_indices"] = window_sources

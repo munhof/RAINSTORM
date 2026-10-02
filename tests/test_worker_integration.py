@@ -1352,3 +1352,22 @@ def test_native_vame_can_select_native_rnn_backend():
     assert model.rnn_backend == 'native'
     with pytest.raises(ValueError):
         NativeVAMENetwork(2, 3, 2, 4, rnn_backend='invalid')
+
+
+def test_pose_filter_and_windows_report_real_observations_without_changing_boundaries():
+    from storm.pipeline import PipelineContext
+    from rainstorm_thesis.preprocessing import LikelihoodFilter, TemporalPoseWindows
+    for step in (LikelihoodFilter(0.5, [[0, 1]]), TemporalPoseWindows([-1, 0, 1])):
+        events = []
+        context = PipelineContext(data=[[1., 2.], [3., 4.], [5., 6.]],
+                                  metadata={'likelihoods': [[1.], [1.], [1.]],
+                                            'frames': [0, 1, 3],
+                                            'observation_indices': [0, 1, 2]},
+                                  progress_callback=events.append)
+        output = step.process(context)
+        assert events[0]['processed_observations'] == 0
+        assert events[-1]['processed_observations'] == 3
+        assert events[-1]['total_observations'] == 3
+        assert events[-1]['batch_step'] == events[-1]['batch_total']
+        if isinstance(step, TemporalPoseWindows):
+            assert output.data == []
