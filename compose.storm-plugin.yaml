@@ -10,6 +10,7 @@ services:
       - ../RAINSTORM/packages/rainstorm-thesis/src:/opt/rainstorm/packages/rainstorm-thesis/src:ro,Z
       - ../RAINSTORM/src/rainstorm:/opt/rainstorm/src/rainstorm:ro,Z
       - ../RAINSTORM/examples/models/trained_models:/opt/rainstorm/examples/models/trained_models:ro,Z
+      - ../RAINSTORM/examples/NOR:/opt/rainstorm/examples/NOR:ro,Z
   worker:
     image: localhost/rainstorm-storm-worker:dev
     build:
@@ -22,6 +23,7 @@ services:
     volumes:
       - ../RAINSTORM/packages/rainstorm-thesis/src:/opt/workspace/RAINSTORM/packages/rainstorm-thesis/src:ro,Z
       - ../RAINSTORM/src/rainstorm:/opt/workspace/RAINSTORM/src/rainstorm:ro,Z
+      - ../RAINSTORM/examples/NOR:/opt/workspace/RAINSTORM/examples/NOR:ro,Z
       - ../RAINSTORM/examples/models/trained_models:/opt/workspace/RAINSTORM/examples/models/trained_models:ro,Z
       - ../RAINSTORM/examples/models/trained_models:/opt/rainstorm/examples/models/trained_models:ro,Z
       - ../RAINSTORM/examples/models/splits/split_example.h5:/opt/workspace/RAINSTORM/examples/models/splits/split_example.h5:ro,Z

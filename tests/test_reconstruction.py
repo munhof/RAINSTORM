@@ -15,6 +15,35 @@ from rainstorm_thesis.splits import build_experiment_splits
 FIXTURE = json.loads((Path(__file__).parent / 'fixtures/historical_inventory.json').read_text())
 
 
+class _NorBinaryFixtureModel:
+    def __init__(self, _config):
+        pass
+
+    def predict(self, inputs):
+        from storm import ModelOutput
+
+        return ModelOutput([0, 1, 0, 0], {
+            'task': 'binary_classification',
+            'category_mapping': {'0': 'Known', '1': 'Novel'},
+            'category_mapping_version': 'rainstorm-nor-v1',
+        })
+
+
+class _NorGroupFixtureModel:
+    def __init__(self, _config):
+        pass
+
+    def fit_predict(self, inputs, _constraints=()):
+        return self.predict(inputs)
+
+    def predict(self, inputs):
+        from storm import ModelOutput
+
+        return ModelOutput([9, 2, 2, 9], {
+            'semantics': 'model-local VAME motif IDs; IDs may permute between runs',
+        })
+
+
 def test_historical_split_matches_preserved_notebook_outputs():
     paths = [Path(name) for name in FIXTURE['filenames']]
     splits = build_experiment_splits(paths, seed=156)
@@ -127,6 +156,109 @@ def test_pose_reference_tracks_contents_and_recipe(tmp_path):
     second = PoseDatasetConfig(pose, max_frames=1).data_ref()
     assert first.fingerprint != second.fingerprint
     assert second.fingerprint != PoseDatasetConfig(pose, max_frames=2).data_ref().fingerprint
+
+
+def test_nor_test_benchmark_bundles_labeled_pose_video_and_roi_as_inference_only():
+    from rainstorm_thesis.example_benchmarks import nor_test_benchmark
+
+    preset = nor_test_benchmark()
+    assets = preset['assets']
+    sessions = preset['config']['session_partitions']
+
+    assert preset['id'] == 'rainstorm.nor_test.v1'
+    assert preset['connector'] == 'dlc_h5'
+    assert preset['config']['inference_only'] is True
+    assert len(sessions) == 10
+    assert all(partition == 'test' for partition in sessions.values())
+    assert sum(asset['role'] == 'pose' for asset in assets) == 10
+    assert sum(asset['role'] == 'video' for asset in assets) == 10
+    assert sum(asset['role'] == 'labels' and asset['source_path'].endswith('_labels.csv')
+               for asset in assets) == 10
+    assert sum(asset['role'] == 'roi' for asset in assets) == 1
+    assert any(asset['source_path'].endswith('reference.json') for asset in assets)
+    assert {asset['session_id'] for asset in assets if asset['role'] == 'video'} == set(sessions)
+    assert preset['config']['canonical_taxonomy'] == ['Known', 'Novel']
+    assert set(preset['config']['label_mapping_by_session']) == set(sessions)
+
+
+def test_plugin_starts_when_optional_nor_examples_are_not_mounted(monkeypatch, tmp_path):
+    from rainstorm_thesis import example_benchmarks
+    from rainstorm_thesis.plugin import register
+    from storm.suite import default_catalog
+
+    monkeypatch.setattr(example_benchmarks, 'RAINSTORM_ROOT', tmp_path)
+    catalog = default_catalog()
+
+    register(catalog)
+
+    assert 'rainstorm.nor_test.v1' not in catalog.dataset_presets
+
+
+def test_inference_only_pose_dataset_is_reserved_and_never_has_training_rows(tmp_path):
+    from rainstorm_thesis.data import load_dlc_h5
+
+    pose = tmp_path / 'NOR_TS_01DLC_test.h5'
+    labels = tmp_path / 'NOR_TS_01_labels.csv'
+    pd.DataFrame({'nose_x': [1.0, 2.0, 3.0], 'nose_y': [4.0, 5.0, 6.0],
+                  'nose_likelihood': [0.99, 0.98, 0.97]},
+                 index=[0, 1, 2]).to_hdf(pose, key='df_with_missing')
+    pd.DataFrame({'Frame': [1, 2, 3], 'obj_1': [1, 0, 0],
+                  'obj_2': [0, 0, 1]}).to_csv(labels, index=False)
+
+    result = load_dlc_h5({
+        'pose_paths': [str(pose)], 'pose_session_ids': ['NOR_TS_01'],
+        'labels_by_session': {'NOR_TS_01': str(labels)}, 'inference_only': True,
+        'fps': 25, 'test_session_ids': ['NOR_TS_01'],
+        'canonical_taxonomy': ['Known', 'Novel'],
+        'label_mapping_by_session': {
+            'NOR_TS_01': {'obj_1': 'Novel', 'obj_2': 'Known'},
+        },
+    })
+
+    assert result['train'] == []
+    assert result['test'] == [0, 1, 2]
+    assert result['partitions'] == ['test'] * 3
+    assert result['reserved_evaluation'] == [True] * 3
+    assert result['targets'] == [1, None, 0]
+    assert result['taxonomy'] == ['Known', 'Novel']
+    assert result['evaluation_mask'] == [True, False, True]
+
+
+def test_nor_benchmark_reports_binary_and_group_metrics_with_label_permutation(tmp_path):
+    from storm.suite import Component, default_catalog, execute
+    from rainstorm_thesis.plugin import register
+
+    catalog = default_catalog()
+    register(catalog)
+    catalog.register(Component('test.nor_binary', _NorBinaryFixtureModel, ('infer',), {}))
+    catalog.register(Component('test.nor_groups', _NorGroupFixtureModel,
+                               ('group', 'infer'), {}))
+    data = {'inputs': [[0], [1], [2], [3]], 'targets': [0, 1, 1, 0],
+            'taxonomy': ['Known', 'Novel'], 'train': [], 'test': [0, 1, 2, 3],
+            'evaluation_mask': [True] * 4}
+
+    binary = execute({'operation': 'infer', 'model': 'test.nor_binary',
+                      'connector': 'json_records', 'data': data, 'metrics': []},
+                     tmp_path, 'nor-binary-metrics', catalog)
+    groups = execute({'operation': 'infer', 'model': 'test.nor_groups',
+                      'connector': 'json_records', 'data': data, 'metrics': []},
+                     tmp_path, 'nor-group-metrics', catalog)
+    trained_groups = execute({
+        'model': 'test.nor_groups', 'connector': 'json_records',
+        'data': {**data, 'train': [0, 1, 2, 3], 'test': []}, 'metrics': [],
+    }, tmp_path, 'nor-group-training', catalog)
+
+    assert binary['metrics']['accuracy'] == 0.75
+    assert binary['metrics']['precision'] == 1.0
+    assert binary['metrics']['recall'] == 0.5
+    assert binary['metrics']['f1'] == pytest.approx(2 / 3)
+    assert binary['metrics']['balanced_accuracy'] == 0.75
+    assert groups['metrics']['ari'] == 1.0
+    assert groups['metrics']['nmi'] == 1.0
+    assert groups['metrics']['homogeneity'] == 1.0
+    assert groups['metrics']['completeness'] == 1.0
+    assert 'accuracy' not in groups['metrics']
+    assert trained_groups['metrics'] == {}
 
 
 def test_loader_preserves_human_categories_frame_alignment_and_mask(tmp_path):

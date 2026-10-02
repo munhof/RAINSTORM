@@ -84,6 +84,10 @@ def test_rocm_worker_has_a_separate_rocm_lock_and_podman_device_overlay():
     compose = (ROOT / "compose.storm-plugin.rocm.yaml").read_text(encoding="utf-8")
     assert "rocm10.0_ubuntu24.04_py3.12_pytorch_release_2.13.0" in containerfile
     assert "uv sync --locked --inexact" in containerfile
+    assert "UV_PROJECT_ENVIRONMENT=/opt/venv" in containerfile
+    assert "uv venv --python 3.12" not in containerfile
+    assert "--no-install-package torch" in containerfile
+    assert "--no-install-package triton" in containerfile
     assert "/dev/kfd:/dev/kfd" in compose
     assert "/dev/dri:/dev/dri" in compose
     assert 'group_add: ["keep-groups"]' in compose

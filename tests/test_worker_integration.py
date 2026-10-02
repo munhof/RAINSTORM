@@ -94,6 +94,91 @@ def test_catalog_registers_recoverable_historical_vame_recipes():
     assert 'análisis contextual posterior' in official['description']
 
 
+def test_native_vame_device_config_automatically_uses_available_accelerator():
+    component = build_catalog().get('vame_native')
+    device = component.schema['properties']['device']
+
+    assert device['default'] == 'auto'
+    assert device['enum'] == ['auto', 'cpu', 'cuda']
+
+
+def test_native_vame_auto_device_prefers_gpu_and_explicit_gpu_fails_clearly(monkeypatch):
+    torch = pytest.importorskip('torch')
+    from rainstorm_thesis.vame_native_runtime import resolve_device
+
+    monkeypatch.setattr(torch.cuda, 'is_available', lambda: True)
+    assert str(resolve_device('auto')) == 'cuda'
+
+    monkeypatch.setattr(torch.cuda, 'is_available', lambda: False)
+    assert str(resolve_device('auto')) == 'cpu'
+    with pytest.raises(RuntimeError, match='GPU device was requested'):
+        resolve_device('cuda')
+
+
+def test_native_vame_finishes_a_cpu_checkpoint_on_rocm_torch_version():
+    torch = pytest.importorskip('torch')
+    if not torch.cuda.is_available():
+        pytest.skip('Requires a CUDA or ROCm worker for the continuation phase')
+    import numpy as np
+
+    from rainstorm_thesis.vame_native_runtime import train_native_vame
+
+    values = np.asarray([
+        [[float(index), 0.0], [float(index) + 0.1, 0.2],
+         [float(index) + 0.2, 0.3]]
+        for index in range(8)
+    ], dtype=np.float32)
+    config = {
+        'n_states': 2, 'latent_dim': 2, 'hidden_dim': 4, 'epochs': 1,
+        'batch_size': 2, 'learning_rate': 0.001, 'kld_weight': 0.5,
+        'seed': 7, 'device': 'cpu', 'num_threads': 1,
+    }
+    checkpoints = []
+    train_native_vame(values, config, checkpoint=checkpoints.append)
+    checkpoint = checkpoints[-1]
+    checkpoint['torch_version'] = '2.14.0+cpu'
+
+    config['device'] = 'cuda'
+    result = train_native_vame(values, config, resume_state=checkpoint)
+
+    assert result['config']['device'] == 'cuda'
+    assert len(result['labels']) == len(values)
+
+
+def test_native_vame_rejects_torch_version_change_before_final_epoch():
+    torch = pytest.importorskip('torch')
+    if not torch.cuda.is_available():
+        pytest.skip('Requires a CUDA or ROCm worker for the continuation phase')
+    import numpy as np
+
+    from rainstorm_thesis.vame_native_runtime import train_native_vame
+
+    values = np.asarray([
+        [[float(index), 0.0], [float(index) + 0.1, 0.2],
+         [float(index) + 0.2, 0.3]]
+        for index in range(8)
+    ], dtype=np.float32)
+    config = {
+        'n_states': 2, 'latent_dim': 2, 'hidden_dim': 4, 'epochs': 2,
+        'batch_size': 2, 'learning_rate': 0.001, 'kld_weight': 0.5,
+        'seed': 7, 'device': 'cpu', 'num_threads': 1,
+    }
+    checkpoints = []
+
+    def stop_after_first_epoch(state):
+        checkpoints.append(state)
+        raise RuntimeError('pause before final epoch')
+
+    with pytest.raises(RuntimeError, match='pause before final epoch'):
+        train_native_vame(values, config, checkpoint=stop_after_first_epoch)
+    checkpoint = checkpoints[-1]
+    checkpoint['torch_version'] = '2.14.0+cpu'
+    config['device'] = 'cuda'
+
+    with pytest.raises(ValueError, match='checkpoint is incompatible'):
+        train_native_vame(values, config, resume_state=checkpoint)
+
+
 def test_compose_gives_studio_the_supervised_worker_runtime_default():
     from pathlib import Path
 
@@ -102,6 +187,14 @@ def test_compose_gives_studio_the_supervised_worker_runtime_default():
     worker = compose.split("  worker:", 1)[1]
     assert "RAINSTORM_SUPERVISED_PYTHON: /opt/workspace/RAINSTORM/supervised-runtime/bin/python" in studio
     assert "../RAINSTORM/examples/models/trained_models:/opt/rainstorm/examples/models/trained_models:ro,Z" in worker
+
+
+def test_compose_mounts_labeled_nor_benchmark_into_worker():
+    from pathlib import Path
+
+    compose = (Path(__file__).parents[1] / "compose.storm-plugin.yaml").read_text()
+    worker = compose.split("  worker:", 1)[1]
+    assert "../RAINSTORM/examples/NOR:/opt/workspace/RAINSTORM/examples/NOR:ro,Z" in worker
 
 
 def test_scientific_worker_image_installs_ffmpeg_for_video_previews():
@@ -362,6 +455,28 @@ def test_rainstorm_state_visualization_returns_labeled_svg():
     assert "VAME motif IDs" in rendered.content
     assert "frame 120" in rendered.content
     assert "state 7" in rendered.content
+
+
+def test_pose_visualization_uses_zero_offset_for_asymmetric_windows():
+    from storm.visualization import VisualizationManager, VisualizationRequest, VisualizationSpec
+
+    catalog = build_catalog()
+    rendered = VisualizationManager(catalog.visualizations).render(
+        VisualizationSpec("rainstorm_pose_timeline"),
+        VisualizationRequest(
+            data=[
+                [[-2, 0], [0, 0], [0, 1], [0, 2], [0, 3]],
+                [[-1, 0], [1, 1], [1, 0], [1, 2], [1, 3]],
+            ],
+            metadata={
+                "offsets": [-2, 0, 1, 2, 3],
+                "indices": [10, 11],
+                "frames": [100, 101],
+            },
+        ),
+    )
+
+    assert 'points="30.0,225.0 770.0,35.0"' in rendered.content
 
 
 def test_native_vame_adapter_calls_scientific_runtime(monkeypatch):
@@ -790,6 +905,45 @@ def test_native_vame_trains_and_replays_small_pose_windows_when_runtime_is_insta
     assert trained.metadata["training_history"][0]["epoch"] == 1
 
 
+def test_native_vame_encodes_training_and_inference_outputs_in_batches(monkeypatch):
+    pytest.importorskip("torch")
+    pytest.importorskip("sklearn")
+    import numpy as np
+
+    from rainstorm_thesis.vame_native_runtime import (
+        NativeVAMENetwork,
+        predict_native_vame,
+        train_native_vame,
+    )
+
+    values = np.asarray([
+        [[float(index), 0.0], [float(index) + 0.1, 0.2],
+         [float(index) + 0.2, 0.3]]
+        for index in range(8)
+    ], dtype=np.float32)
+    config = {
+        "n_states": 2, "latent_dim": 2, "hidden_dim": 4, "epochs": 1,
+        "batch_size": 2, "learning_rate": 0.001, "kld_weight": 0.5,
+        "seed": 7, "device": "cpu", "num_threads": 1,
+    }
+    encoded_batch_sizes = []
+    original_encode = NativeVAMENetwork.encode
+
+    def record_encode_batch(model, batch):
+        encoded_batch_sizes.append(len(batch))
+        return original_encode(model, batch)
+
+    monkeypatch.setattr(NativeVAMENetwork, "encode", record_encode_batch)
+    trained = train_native_vame(values, config)
+    assert max(encoded_batch_sizes) <= config["batch_size"]
+    assert trained["embeddings"].shape == (len(values), config["latent_dim"])
+
+    encoded_batch_sizes.clear()
+    labels, embeddings = predict_native_vame(values, trained)
+    assert max(encoded_batch_sizes) <= config["batch_size"]
+    assert len(labels) == len(embeddings) == len(values)
+
+
 def test_native_vame_runtime_resumes_exactly_from_an_epoch_boundary():
     pytest.importorskip("torch")
     pytest.importorskip("sklearn")
@@ -1099,6 +1253,49 @@ def test_pose_orientation_can_leave_rows_with_coincident_references_unrotated():
     np.testing.assert_allclose(actual[1][2:4], [-2**-0.5, -2**-0.5])
 
 
+def test_pose_numeric_steps_choose_gpu_for_large_batches_and_allow_cpu_override(monkeypatch):
+    torch = pytest.importorskip("torch")
+    from rainstorm_thesis.preprocessing import _pose_compute_device
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    assert _pose_compute_device("auto", 4) == "cpu"
+    assert _pose_compute_device("auto", 32_768) == "cuda"
+    assert _pose_compute_device("cpu", 100_000) == "cpu"
+    assert _pose_compute_device("cuda", 4) == "cuda"
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert _pose_compute_device("auto", 100_000) == "cpu"
+    with pytest.raises(RuntimeError, match="no available CUDA or ROCm device"):
+        _pose_compute_device("cuda", 100_000)
+
+
+@pytest.mark.parametrize("step_type", ["recenter", "orient"])
+def test_pose_numeric_steps_gpu_match_cpu_results(step_type):
+    torch = pytest.importorskip("torch")
+    if not torch.cuda.is_available():
+        pytest.skip("ROCm/CUDA worker required")
+    import numpy as np
+    from storm import PipelineContext
+    from rainstorm_thesis.preprocessing import OrientPose, RecenterPose
+
+    source = [[2.0, 1.0, 1.0, 1.0, 5.0, 3.0],
+              [4.0, 2.0, 0.0, 1.0, 6.0, 4.0]]
+    if step_type == "recenter":
+        make_step = lambda device: RecenterPose(
+            center_indices=[2, 3], coordinate_pairs=[[0, 1], [2, 3], [4, 5]],
+            device=device)
+    else:
+        make_step = lambda device: OrientPose(
+            reference_pairs=[[2, 3], [0, 1]],
+            coordinate_pairs=[[0, 1], [2, 3], [4, 5]],
+            target_angle_degrees=45, degenerate_reference_policy="identity",
+            device=device)
+
+    expected = make_step("cpu").process(PipelineContext(data=source)).data
+    actual = make_step("cuda").process(PipelineContext(data=source)).data
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
 def test_engine_passes_registered_dataset_context_to_contextual_inference_adapters(tmp_path):
     from storm.suite import Component, default_catalog, execute
 
@@ -1121,3 +1318,24 @@ def test_engine_passes_registered_dataset_context_to_contextual_inference_adapte
 
     assert result["predictions"] == [2, 1]
     assert result["output_metadata"]["semantics"] == "context-bound predictions"
+
+
+def test_native_vame_reports_training_and_inference_batches():
+    pytest.importorskip('torch')
+    pytest.importorskip('sklearn')
+    import numpy as np
+    from rainstorm_thesis.vame_native_runtime import train_native_vame, predict_native_vame
+    values = np.arange(48, dtype=np.float32).reshape(8, 3, 2) / 48
+    config = dict(n_states=2, latent_dim=2, hidden_dim=4, epochs=1,
+                  batch_size=2, learning_rate=0.001, kld_weight=0.5,
+                  seed=7, device='cpu', num_threads=1)
+    events = []
+    trained = train_native_vame(values, config, progress_callback=events.append)
+    training = [event for event in events if event['phase'] == 'training']
+    assert [event['batch_step'] for event in training] == [0, 1, 2, 3, 4]
+    assert training[-1]['processed_observations'] == 8
+    assert training[-1]['throughput'] > 0
+    events.clear()
+    predict_native_vame(values, trained, progress_callback=events.append)
+    assert events[-1]['batch_step'] == events[-1]['batch_total'] == 4
+    assert events[-1]['batch_eta_seconds'] == 0

@@ -17,7 +17,22 @@ class RainstormPoseTimeline(Visualization):
     def render(self, request: VisualizationRequest) -> VisualizationResult:
         values = _rows(request.data)
         if values and values[0] and isinstance(values[0][0], list):
-            values = [row[len(row) // 2] for row in values]
+            offsets = request.metadata.get("offsets")
+            if offsets is not None:
+                if (not isinstance(offsets, (list, tuple))
+                        or len(offsets) != len(values[0])
+                        or any(type(offset) is not int for offset in offsets)
+                        or offsets.count(0) != 1):
+                    raise ValueError(
+                        "Temporal pose offsets must align with the window and include zero once"
+                    )
+                center = offsets.index(0)
+            else:
+                # Even windows use the lower middle frame, as in VAME's centered alignment.
+                center = (len(values[0]) - 1) // 2
+            if any(len(row) <= center for row in values):
+                raise ValueError("Temporal pose windows must have aligned frame counts")
+            values = [row[center] for row in values]
         indices = request.metadata.get("indices")
         if indices is not None and len(indices) != len(values):
             if any(type(index) is not int or index < 0 or index >= len(values) for index in indices):

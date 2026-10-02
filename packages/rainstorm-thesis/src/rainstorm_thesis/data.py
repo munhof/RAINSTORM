@@ -142,6 +142,11 @@ def _load_dlc_tables(data: dict, pd, table_reader) -> dict:
     train_sessions = set(data.get("train_session_ids", []))
     validation_sessions = set(data.get("validation_session_ids", []))
     test_sessions = set(data.get("test_session_ids", []))
+    inference_only = data.get("inference_only", False)
+    if type(inference_only) is not bool:
+        raise ValueError("inference_only must be a boolean")
+    if inference_only and (train_sessions or validation_sessions):
+        raise ValueError("Inference-only datasets cannot contain training or validation sessions")
     frame_start = data.get("frame_start")
     frame_stop = data.get("frame_stop")
     max_frames = data.get("max_frames")
@@ -216,8 +221,10 @@ def _load_dlc_tables(data: dict, pd, table_reader) -> dict:
         values = table.loc[:, feature_names].apply(pd.to_numeric, errors="raise").to_numpy(dtype=float)
         confidence = (table.loc[:, likelihood_names].apply(pd.to_numeric, errors="coerce")
                       .to_numpy(dtype=float)) if likelihood_names else [[] for _ in range(len(table))]
-        session_partition = _session_partition(session, train_sessions, validation_sessions,
-                                               test_sessions)
+        session_partition = (
+            "test" if inference_only else
+            _session_partition(session, train_sessions, validation_sessions, test_sessions)
+        )
         session_video_gaps = set(video_discontinuities.get(session, []))
         segment_number = 0
         previous_frame = None
@@ -263,10 +270,14 @@ def _load_dlc_tables(data: dict, pd, table_reader) -> dict:
         pose_frame_base=pose_frame_base,
         frame_offsets_by_session=(video_frame_offsets
                                   if label_frame_reference == "video" else {}),
+        canonical_taxonomy=data.get("canonical_taxonomy"),
+        label_mapping_by_session=data.get("label_mapping_by_session"),
     )
     reserved = list(data.get("reserved_evaluation", [False] * len(inputs)))
     if len(reserved) != len(inputs) or any(type(value) is not bool for value in reserved):
         raise ValueError("reserved_evaluation must contain one boolean per observation")
+    if inference_only:
+        reserved = [True] * len(inputs)
     reserved_ranges = data.get("reserved_evaluation_ranges_by_session", {})
     if not isinstance(reserved_ranges, dict):
         raise ValueError("reserved_evaluation_ranges_by_session must be an object")
@@ -319,6 +330,9 @@ def _load_dlc_tables(data: dict, pd, table_reader) -> dict:
             "csv_frame_base": csv_frame_base,
             "pose_frame_base": pose_frame_base,
             "label_frame_reference": label_frame_reference,
+            "inference_only": inference_only,
+            "canonical_taxonomy": data.get("canonical_taxonomy"),
+            "label_mapping_by_session": data.get("label_mapping_by_session", {}),
             "video_frame_offsets_by_session": video_frame_offsets,
             "video_discontinuities_by_session": video_discontinuities,
             "frame_start": frame_start,
@@ -347,6 +361,7 @@ def _load_dlc_tables(data: dict, pd, table_reader) -> dict:
         "evaluation_mask": evaluation_mask,
         "reserved_evaluation": reserved,
         "reserved_evaluation_ranges_by_session": reserved_ranges,
+        "inference_only": inference_only,
         "video_discontinuities_by_session": video_discontinuities,
         "taxonomy": taxonomy,
         "fps": fps,
@@ -379,7 +394,8 @@ def _session_partition(session, train_sessions, validation_sessions, test_sessio
 
 
 def _load_aligned_labels(label_source, sessions, frames, *, csv_frame_base, pose_frame_base,
-                         frame_offsets_by_session=None):
+                         frame_offsets_by_session=None, canonical_taxonomy=None,
+                         label_mapping_by_session=None):
     if not label_source:
         return None, [True] * len(frames), []
     import pandas as pd
@@ -393,7 +409,16 @@ def _load_aligned_labels(label_source, sessions, frames, *, csv_frame_base, pose
     else:
         raise ValueError("Multi-session labels must be supplied as labels_by_session")
     tables = {}
-    taxonomy = None
+    mappings = label_mapping_by_session or {}
+    if not isinstance(mappings, dict):
+        raise ValueError("label_mapping_by_session must be an object")
+    if canonical_taxonomy is not None and (
+            not isinstance(canonical_taxonomy, list)
+            or not canonical_taxonomy
+            or any(not isinstance(name, str) or not name for name in canonical_taxonomy)
+            or len(set(canonical_taxonomy)) != len(canonical_taxonomy)):
+        raise ValueError("canonical_taxonomy must contain distinct nonempty labels")
+    taxonomy = list(canonical_taxonomy) if canonical_taxonomy is not None else None
     for session, path in label_paths.items():
         if not path.is_file():
             raise FileNotFoundError(path)
@@ -401,16 +426,34 @@ def _load_aligned_labels(label_source, sessions, frames, *, csv_frame_base, pose
         if "Frame" not in labels or len(labels.columns) < 2:
             raise ValueError("Labels must have a Frame column and at least one taxonomy column")
         current_taxonomy = [str(column) for column in labels.columns if column != "Frame"]
-        if taxonomy is None:
-            taxonomy = current_taxonomy
-        elif current_taxonomy != taxonomy:
-            raise ValueError("Session label CSVs must declare the same taxonomy in the same order")
+        mapping = mappings.get(session)
+        if mapping is not None:
+            if (taxonomy is None or not isinstance(mapping, dict)
+                    or set(mapping) != set(current_taxonomy)
+                    or any(not isinstance(value, str) or not value for value in mapping.values())
+                    or set(mapping.values()) != set(taxonomy)):
+                raise ValueError(f"Invalid canonical label mapping for {session}")
+            source_columns = {
+                canonical: source for source, canonical in mapping.items()
+            }
+            ordered_columns = [source_columns[canonical] for canonical in taxonomy]
+        else:
+            if mappings or canonical_taxonomy is not None:
+                raise ValueError(f"Canonical label mapping is missing for {session}")
+            if taxonomy is None:
+                taxonomy = current_taxonomy
+            elif current_taxonomy != taxonomy:
+                raise ValueError(
+                    "Session label CSVs must declare the same taxonomy in the same order")
+            ordered_columns = taxonomy
         frame_values = pd.to_numeric(labels["Frame"], errors="raise")
         if (frame_values.isna().any() or frame_values.duplicated().any()
                 or (frame_values % 1 != 0).any()):
             raise ValueError(f"Labels contain missing, duplicate, or noninteger frames for {session}")
         labels.index = frame_values.astype(int)
-        tables[session] = labels[taxonomy].apply(pd.to_numeric, errors="coerce")
+        table = labels[ordered_columns].apply(pd.to_numeric, errors="coerce")
+        table.columns = taxonomy
+        tables[session] = table
     targets, mask = [], []
     for session, frame in zip(sessions, frames, strict=True):
         table = tables.get(session)

@@ -66,9 +66,9 @@ podman-compose \
   up -d --build
 ```
 
-En la configuración del modelo `vame_native`, seleccioná `device: cuda`; el
-valor inicial del formulario sigue siendo `cpu`. El overlay entrega la GPU sólo
-al contenedor `worker`.
+En `vame_native`, `device: auto` usa la GPU cuando PyTorch la detecta; también
+podés elegir CPU o exigir GPU con `cuda`. El overlay entrega la GPU sólo al
+contenedor `worker`.
 
 El compose publica Studio únicamente en `127.0.0.1:8000`. Para abrirlo desde tu
 PC sin IP pública ni entrada directa al puerto 8000, permití SSH desde IAP en el
@@ -122,10 +122,19 @@ podman-compose \
   exec worker python -c 'import torch; print(torch.__version__, torch.version.hip); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "GPU ROCm no disponible"); assert torch.version.hip and torch.cuda.is_available()'
 ```
 
-En los planes de `vame_native`, configurá `device: cuda`: PyTorch usa esa API
-también para HIP/ROCm. La prueba del dispositivo debe pasar antes de iniciar el
-entrenamiento. La receta fija PyTorch `2.13.0+rocm10.0.0`, Triton y los paquetes
-de `gfx1103` publicados por AMD.
+En `vame_native`, el selector de dispositivo queda en `auto` por defecto: usa
+la GPU si PyTorch la detecta y vuelve a CPU si no. También podés elegir `cpu` o
+`cuda` desde la configuración del modelo; PyTorch usa `cuda` también para
+HIP/ROCm. Al retomar un checkpoint, podés cambiar el dispositivo si no cambian
+los datos ni el resto de la receta. La imagen fija PyTorch `2.13.0+rocm10.0.0`,
+Triton y los paquetes de `gfx1103` publicados por AMD.
+
+Las etapas `pose.recenter` y `pose.orient_coordinates` también aceptan
+`device: auto`, `cpu` o `cuda`. En modo automático usan GPU para lotes de al
+menos 32.768 filas, en bloques de 65.536 filas y con coordenadas de 64 bits; las
+muestras pequeñas se quedan en CPU. La selección de columnas, el filtro de
+confianza, las ventanas temporales y la lectura/escritura de archivos siguen en
+CPU para evitar copiar datos grandes o cruzar límites de sesión y partición.
 
 ## Registrar y revisar datos
 
@@ -189,7 +198,9 @@ y se muestran en Studio, pero hoy no se pasan como entrada contextual al adapter
 `supervised_simple` y `supervised_wide` cargan los bundles Keras existentes en
 un runtime TensorFlow aislado. Reciben respectivamente 12 features y ventanas
 de 7 × 12, y producen una probabilidad binaria. El runtime informa que la
-población de entrenamiento es desconocida; no ofrece `fit`.
+población de entrenamiento es desconocida; no ofrece `fit`. TensorFlow 2.10 en
+la imagen ROCm actual no detecta la Radeon, así que estos dos adapters siguen en
+CPU.
 
 Los parámetros del manuscrito son referencias históricas para ajustar la
 configuración. Las ejecuciones nuevas deben conservar su propia revisión,

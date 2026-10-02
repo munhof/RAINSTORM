@@ -22,6 +22,14 @@ WORKDIR /opt/workspace/RAINSTORM/envs/vame_worker_rocm
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 RUN uv sync --locked --inexact \
+        --no-install-package torch \
+        --no-install-package triton \
+        --no-install-package rocm \
+        --no-install-package rocm-sdk-core \
+        --no-install-package rocm-sdk-libraries \
+        --no-install-package rocm-sdk-device-gfx1103 \
+        --no-install-package amd-torch-device-gfx1103 \
+        --no-install-package amd-torch-device-gfx110x \
     && uv python install 3.9 \
     && uv venv --python 3.9 /opt/workspace/RAINSTORM/supervised-runtime \
     && uv pip install --python /opt/workspace/RAINSTORM/supervised-runtime/bin/python \

@@ -98,6 +98,31 @@ huella de los videos, asociaciones y límites revisados. Preparación, vista pre
 y ejecución de modelos quedan bloqueadas hasta guardarla; cambios en los límites
 requieren otra revisión.
 
+## Benchmark NOR de ejemplo
+
+En **Datos → Benchmarks de ejemplo**, Studio puede registrar `NOR_TS_01` a
+`NOR_TS_10` como una revisión de evaluación separada: 10 poses DLC H5, 10 videos
+de 25 FPS, `ROIs.json`, 10 CSV manuales y `reference.json`. Son 75.000 filas;
+7.427 tienen una etiqueta one-hot válida. El resto queda en la máscara de
+exclusión y no participa de las métricas. La correspondencia entre `obj_1` /
+`obj_2` y `Known` / `Novel` se toma de `reference.json` por sesión. CSV empieza
+en frame 1; pose y video, en frame 0.
+
+La revisión queda marcada como `inference_only`, con todas las sesiones en
+evaluación y todos sus frames protegidos. Studio impide entrenar, actualizar,
+reanudar o reprocesar con ella. Después de inspeccionarla, se puede aplicar una
+corrida guardada desde **Modelos**; los adapters de inferencia preentrenados se
+pueden configurar desde **Flujo**. La pose alimenta los adapters; los videos y
+ROI quedan asociados para la revisión visual y contextual.
+
+Para VAME, el reporte calcula ARI, NMI, homogeneidad y completitud contra las
+etiquetas `Known` / `Novel`; estos puntajes no comparan directamente IDs de
+motivos. Para salidas binarias calcula accuracy, precision, recall, F1 y
+balanced accuracy sólo cuando la correspondencia declarada por el adapter
+coincide con la taxonomía. La semántica de los bundles `example_simple` y
+`example_wide` sigue desconocida, así que no se los presenta como comparables
+hasta que el investigador confirme esa correspondencia.
+
 ## Modelos y comparaciones
 
 El registro de Studio incluye cuatro adapters:

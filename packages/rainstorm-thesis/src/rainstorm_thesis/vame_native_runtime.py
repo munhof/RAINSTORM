@@ -6,6 +6,9 @@ in Tesis_Facu (GRU encoder, variational latent heads, and GRU reconstruction).
 """
 from __future__ import annotations
 
+from math import ceil
+from time import monotonic
+
 import numpy as np
 import torch
 from torch import nn
@@ -52,7 +55,40 @@ def _cpu_state(value):
     return value
 
 
-def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=None) -> dict:
+def resolve_device(requested: str) -> torch.device:
+    """Choose a supported runtime device, preferring CUDA/HIP for ``auto``."""
+    if requested == "auto":
+        requested = "cuda" if torch.cuda.is_available() else "cpu"
+    device = torch.device(requested)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            "A GPU device was requested, but this worker has no available "
+            "CUDA or ROCm device. Start the GPU worker or choose CPU."
+        )
+    return device
+
+
+def _report_batch(callback, *, phase, label, completed, total, batch_size, started,
+                  device, epoch=None, epochs=None, loss=None):
+    if callback is None:
+        return
+    elapsed = max(0.0, monotonic() - started)
+    speed = completed / elapsed if elapsed > 0 and completed else None
+    callback({
+        'phase': phase, 'label': label, 'epoch': epoch, 'device': str(device),
+        'phase_step': epoch - 1 if epoch is not None else completed,
+        'phase_total': epochs if epoch is not None else total,
+        'unit_label': 'épocas' if epoch is not None else 'observaciones',
+        'batch_step': ceil(completed / batch_size), 'batch_total': ceil(total / batch_size),
+        'processed_observations': completed, 'total_observations': total,
+        'batch_elapsed_seconds': elapsed, 'throughput': speed,
+        'batch_eta_seconds': ceil((total - completed) / speed) if speed else None,
+        'loss': loss,
+    })
+
+
+def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=None,
+                      progress_callback=None) -> dict:
     values = np.asarray(inputs, dtype=np.float32)
     if values.ndim != 3 or not values.shape[0] or not values.shape[1] or not values.shape[2]:
         raise ValueError("Native VAME expects (observations, window, features) pose windows")
@@ -60,7 +96,7 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
         raise ValueError("Native VAME input contains missing or non-finite pose values")
     if config["n_states"] > len(values):
         raise ValueError("n_states cannot exceed the number of training windows")
-    device = torch.device(config["device"])
+    device = resolve_device(config.get("device", "auto"))
     torch.manual_seed(config["seed"])
     np.random.seed(config["seed"])
     torch.set_num_threads(max(1, int(config.get("num_threads", 2))))
@@ -68,7 +104,8 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
         feature_dim=values.shape[2], sequence_len=values.shape[1],
         latent_dim=config["latent_dim"], hidden_dim=config["hidden_dim"],
     ).to(device)
-    tensor = torch.as_tensor(values, device=device)
+    # Keep the complete source array on CPU; only the active batch moves to the device.
+    tensor = torch.as_tensor(values)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(config["learning_rate"]))
     rng = np.random.default_rng(config["seed"])
     input_spec = {"feature_dim": int(values.shape[2]),
@@ -77,10 +114,21 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
     history = []
     first_epoch = 0
     if resume_state is not None:
+        saved_training_config = dict(resume_state.get("training_config") or {})
+        requested_training_config = dict(training_config)
+        device_changed = (
+            saved_training_config.get("device") != requested_training_config.get("device")
+        )
+        saved_training_config.pop("device", None)
+        requested_training_config.pop("device", None)
+        saved_epoch = resume_state.get("epoch")
+        final_epoch = type(saved_epoch) is int and saved_epoch == config["epochs"]
+        torch_version_matches = resume_state.get("torch_version") == torch.__version__
+        torch_version_compatible = torch_version_matches or (device_changed and final_epoch)
         if (resume_state.get("format_version") != 1
                 or resume_state.get("input_spec") != input_spec
-                or resume_state.get("training_config") != training_config
-                or resume_state.get("torch_version") != torch.__version__
+                or saved_training_config != requested_training_config
+                or not torch_version_compatible
                 or resume_state.get("numpy_version") != np.__version__
                 or resume_state.get("sklearn_version") != sklearn.__version__):
             raise ValueError("Native VAME checkpoint is incompatible with this data, recipe, or runtime")
@@ -95,24 +143,31 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
             name: torch.as_tensor(value, device=device)
             for name, value in resume_state["model_state"].items()
         })
-        optimizer.load_state_dict(resume_state["optimizer_state"])
+        if not final_epoch:
+            optimizer.load_state_dict(resume_state["optimizer_state"])
         rng.bit_generator.state = resume_state["numpy_rng_state"]
         history = list(resume_state["training_history"])
         torch.set_rng_state(torch.as_tensor(
             resume_state["torch_rng_state"], dtype=torch.uint8, device="cpu"
         ))
-        if device.type == "cuda":
+        cuda_rng_state = resume_state.get("cuda_rng_state", [])
+        if device.type == "cuda" and cuda_rng_state:
             torch.cuda.set_rng_state_all([
                 torch.as_tensor(state, dtype=torch.uint8, device="cpu")
-                for state in resume_state.get("cuda_rng_state", [])
+                for state in cuda_rng_state
             ])
 
     model.train()
     for epoch in range(first_epoch, config["epochs"]):
         order = rng.permutation(len(values))
         totals = []
+        started = monotonic()
+        batch_info = dict(phase='training', label='Entrenando VAME nativo',
+                          total=len(values), batch_size=config['batch_size'],
+                          started=started, device=device, epoch=epoch + 1, epochs=config['epochs'])
+        _report_batch(progress_callback, completed=0, **batch_info)
         for start in range(0, len(order), config["batch_size"]):
-            batch = tensor[order[start:start + config["batch_size"]]]
+            batch = tensor[order[start:start + config["batch_size"]]].to(device)
             optimizer.zero_grad(set_to_none=True)
             reconstruction, mu, logvar = model(batch, sample=True)
             reconstruction_loss = torch.nn.functional.mse_loss(reconstruction, batch)
@@ -125,6 +180,9 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
             totals.append((float(loss.detach().cpu()),
                            float(reconstruction_loss.detach().cpu()),
                            float(kld_loss.detach().cpu())))
+            _report_batch(progress_callback,
+                          completed=min(start + config['batch_size'], len(values)),
+                          loss=totals[-1][0], **batch_info)
         history.append({
             "epoch": epoch + 1,
             "total_loss": float(np.mean([item[0] for item in totals])),
@@ -153,25 +211,33 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
             checkpoint(state)
 
     model.eval()
-    with torch.no_grad():
-        embeddings = model.encode(tensor)[0].cpu().numpy()
+    embeddings = _encode_in_batches(model, tensor, config["batch_size"], device,
+                                    progress_callback=progress_callback, phase='encoding')
+    if progress_callback is not None:
+        progress_callback({'phase': 'clustering', 'label': 'Ajustando el discretizador KMeans',
+                           'phase_step': None, 'phase_total': None, 'unit_label': None,
+                           'device': 'cpu', 'epoch': None})
     clusterer = KMeans(n_clusters=config["n_states"], random_state=config["seed"], n_init=10)
     labels = clusterer.fit_predict(embeddings)
     return {
         "labels": labels.astype(int).tolist(),
-        "embeddings": embeddings.astype(float).tolist(),
+        "embeddings": embeddings,
         "model_state": {name: value.detach().cpu().numpy()
                         for name, value in model.state_dict().items()},
         "cluster_centers": clusterer.cluster_centers_.astype(float),
         "input_spec": input_spec,
-        "config": {key: config[key] for key in
-                   ("latent_dim", "hidden_dim", "device")},
+        "config": {
+            "latent_dim": config["latent_dim"],
+            "hidden_dim": config["hidden_dim"],
+            "device": str(device),
+            "batch_size": config["batch_size"],
+        },
         "training_history": history,
         "seed": int(config["seed"]),
     }
 
 
-def predict_native_vame(inputs, checkpoint: dict):
+def predict_native_vame(inputs, checkpoint: dict, *, progress_callback=None):
     values = np.asarray(inputs, dtype=np.float32)
     expected = checkpoint["input_spec"]
     if values.ndim != 3 or values.shape[1:] != (
@@ -181,7 +247,7 @@ def predict_native_vame(inputs, checkpoint: dict):
     if not np.isfinite(values).all():
         raise ValueError("Prediction input contains missing or non-finite pose values")
     config = checkpoint["config"]
-    device = torch.device(config["device"])
+    device = resolve_device(config.get("device", "cpu"))
     model = NativeVAMENetwork(
         expected["feature_dim"], expected["sequence_len"],
         config["latent_dim"], config["hidden_dim"],
@@ -189,8 +255,31 @@ def predict_native_vame(inputs, checkpoint: dict):
     state = {name: torch.as_tensor(value) for name, value in checkpoint["model_state"].items()}
     model.load_state_dict(state)
     model.eval()
-    with torch.no_grad():
-        embeddings = model.encode(torch.as_tensor(values, device=device))[0].cpu().numpy()
+    embeddings = _encode_in_batches(
+        model, torch.as_tensor(values), int(config.get("batch_size", 256)), device,
+        progress_callback=progress_callback,
+    )
     centers = np.asarray(checkpoint["cluster_centers"], dtype=float)
     labels = np.square(embeddings[:, None, :] - centers[None, :, :]).sum(axis=2).argmin(axis=1)
     return labels.astype(int).tolist(), embeddings.astype(float).tolist()
+
+
+def _encode_in_batches(model, values, batch_size: int, device, *,
+                       progress_callback=None, phase='predicting') -> np.ndarray:
+    """Encode all observations without allocating sequence activations for the full dataset."""
+    if batch_size < 1:
+        raise ValueError("VAME encoding batch_size must be positive")
+    embeddings = np.empty((len(values), model.latent_dim), dtype=np.float32)
+    started = monotonic()
+    batch_info = dict(phase=phase, label='Codificando ventanas de pose',
+                      total=len(values), batch_size=batch_size, started=started, device=device)
+    _report_batch(progress_callback, completed=0, **batch_info)
+    model.eval()
+    with torch.no_grad():
+        for start in range(0, len(values), batch_size):
+            end = min(start + batch_size, len(values))
+            batch = values[start:end].to(device)
+            encoded, _ = model.encode(batch)
+            embeddings[start:end] = encoded.cpu().numpy()
+            _report_batch(progress_callback, completed=end, **batch_info)
+    return embeddings

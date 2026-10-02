@@ -1,12 +1,15 @@
 """Register RAINSTORM pose adapters with the STORM execution worker."""
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 from storm.suite import Component
 
 from .data import load_dlc_csv, load_dlc_h5
+from .example_benchmarks import nor_test_benchmark
+from .metrics import register_metrics
 from .preprocessing import (
     LikelihoodFilter,
     OrientPose,
@@ -19,6 +22,7 @@ from .visualizations import RainstormPoseTimeline, RainstormStateTimeline
 
 
 RAINSTORM_ROOT = Path(__file__).resolve().parents[4]
+logger = logging.getLogger(__name__)
 
 
 def _build_supervised_model(config):
@@ -37,6 +41,13 @@ def register(catalog) -> None:
         catalog.steps.register(step)
     for visualization in (RainstormPoseTimeline, RainstormStateTimeline):
         catalog.visualizations.register(visualization)
+    try:
+        dataset_preset = nor_test_benchmark()
+    except (OSError, ValueError) as error:
+        logger.warning('Skipping optional NOR example benchmark: %s', error)
+    else:
+        catalog.register_dataset_preset(dataset_preset)
+    register_metrics(catalog.metrics)
     catalog.register(Component(
         "vame_native",
         VAMENativeModel,
@@ -53,7 +64,14 @@ def register(catalog) -> None:
                                   "default": 0.001},
                 "kld_weight": {"type": "number", "minimum": 0, "default": 0.5},
                 "seed": {"type": "integer", "minimum": 0, "default": 156},
-                "device": {"type": "string", "default": "cpu"},
+                "device": {
+                    "type": "string", "default": "auto",
+                    "enum": ["auto", "cpu", "cuda"],
+                    "description": (
+                        "Auto usa GPU si PyTorch la detecta; cuda también selecciona "
+                        "GPU AMD con ROCm."
+                    ),
+                },
                 "num_threads": {"type": "integer", "minimum": 1, "default": 2},
             },
         },

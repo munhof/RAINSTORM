@@ -5,6 +5,58 @@ from math import atan2, cos, isfinite, pi, radians, sin
 from storm.pipeline import PipelineContext, PipelineStep
 
 
+POSE_GPU_MIN_ROWS = 32_768
+POSE_GPU_CHUNK_ROWS = 65_536
+
+
+def _pose_compute_device(requested: str, row_count: int) -> str:
+    """Resolve the optional accelerator for large, numeric pose transforms."""
+    if requested not in {"auto", "cpu", "cuda"}:
+        raise ValueError("device must be 'auto', 'cpu', or 'cuda'")
+    if requested == "cpu" or (requested == "auto" and row_count < POSE_GPU_MIN_ROWS):
+        return "cpu"
+    try:
+        import torch
+    except ImportError as error:
+        if requested == "cuda":
+            raise RuntimeError(
+                "A GPU was requested for pose preprocessing, but PyTorch is not installed."
+            ) from error
+        return "cpu"
+    available = torch.cuda.is_available()
+    if requested == "cuda" and not available:
+        raise RuntimeError(
+            "A GPU was requested for pose preprocessing, but this worker has no "
+            "available CUDA or ROCm device. Choose auto or cpu."
+        )
+    return "cuda" if available else "cpu"
+
+
+def _apply_pose_gpu(values, operation, progress_callback=None):
+    """Apply one pose operation in bounded float64 batches on CUDA or ROCm."""
+    import numpy as np
+    import torch
+
+    try:
+        matrix = np.asarray(values, dtype=np.float64)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Pose coordinates must form a rectangular numeric matrix") from error
+    if matrix.ndim != 2 or not len(matrix):
+        raise ValueError("Pose coordinates must form a nonempty numeric matrix")
+    for start in range(0, len(matrix), POSE_GPU_CHUNK_ROWS):
+        end = min(start + POSE_GPU_CHUNK_ROWS, len(matrix))
+        batch = torch.as_tensor(matrix[start:end], dtype=torch.float64, device="cuda")
+        operation(batch, torch)
+        matrix[start:end] = batch.cpu().numpy()
+        if progress_callback is not None:
+            progress_callback({'label': 'Transformando coordenadas de pose en GPU',
+                               'batch_step': (start // POSE_GPU_CHUNK_ROWS) + 1,
+                               'batch_total': (len(matrix) + POSE_GPU_CHUNK_ROWS - 1) // POSE_GPU_CHUNK_ROWS,
+                               'processed_observations': end, 'total_observations': len(matrix),
+                               'device': 'cuda'})
+    return matrix.tolist()
+
+
 class SelectPoseCoordinates(PipelineStep):
     step_type = "pose.select_coordinates"
 
@@ -54,15 +106,34 @@ class SelectPoseCoordinates(PipelineStep):
 class RecenterPose(PipelineStep):
     step_type = "pose.recenter"
 
-    def __init__(self, center_indices: list[int], coordinate_pairs: list[list[int]]):
+    def __init__(self, center_indices: list[int], coordinate_pairs: list[list[int]],
+                 device: str = "auto"):
         if len(center_indices) != 2 or any(type(i) is not int or i < 0 for i in center_indices):
             raise ValueError("center_indices must contain x and y indices")
         if not coordinate_pairs or any(len(pair) != 2 for pair in coordinate_pairs):
             raise ValueError("coordinate_pairs must contain x/y index pairs")
+        if device not in {"auto", "cpu", "cuda"}:
+            raise ValueError("device must be 'auto', 'cpu', or 'cuda'")
         self.center_indices = tuple(center_indices)
         self.coordinate_pairs = tuple(tuple(pair) for pair in coordinate_pairs)
+        self.device = device
 
     def process(self, context: PipelineContext) -> PipelineContext:
+        requested_device = _pose_compute_device(self.device, len(context.data))
+        if requested_device == "cuda":
+            coordinate_indices = [index for pair in self.coordinate_pairs for index in pair]
+            center_indices = self.center_indices
+
+            def recenter(batch, torch):
+                selected = torch.as_tensor(coordinate_indices, device=batch.device)
+                center = torch.as_tensor(center_indices, device=batch.device)
+                coordinates = batch.index_select(1, selected).reshape(
+                    len(batch), len(self.coordinate_pairs), 2)
+                origin = batch.index_select(1, center).unsqueeze(1)
+                batch[:, selected] = (coordinates - origin).reshape(len(batch), -1)
+
+            context.data = _apply_pose_gpu(context.data, recenter, context.progress_callback)
+            return context
         values = [[float(value) for value in row] for row in context.data]
         if not values or max((*self.center_indices, *(i for pair in self.coordinate_pairs for i in pair))) >= len(values[0]):
             raise ValueError("Center or coordinate indices are outside the pose rows")
@@ -82,7 +153,7 @@ class OrientPose(PipelineStep):
 
     def __init__(self, reference_pairs: list[list[int]],
                  coordinate_pairs: list[list[int]], target_angle_degrees: float = 45,
-                 degenerate_reference_policy: str = "error"):
+                 degenerate_reference_policy: str = "error", device: str = "auto"):
         pairs = [*reference_pairs, *coordinate_pairs]
         if (len(reference_pairs) != 2 or not coordinate_pairs or
                 any(len(pair) != 2 or any(type(index) is not int or index < 0 for index in pair)
@@ -94,12 +165,44 @@ class OrientPose(PipelineStep):
             raise ValueError(
                 "degenerate_reference_policy must be 'error' or 'identity'"
             )
+        if device not in {"auto", "cpu", "cuda"}:
+            raise ValueError("device must be 'auto', 'cpu', or 'cuda'")
         self.reference_pairs = tuple(tuple(pair) for pair in reference_pairs)
         self.coordinate_pairs = tuple(tuple(pair) for pair in coordinate_pairs)
         self.target_angle = radians(float(target_angle_degrees))
         self.degenerate_reference_policy = degenerate_reference_policy
+        self.device = device
 
     def process(self, context: PipelineContext) -> PipelineContext:
+        requested_device = _pose_compute_device(self.device, len(context.data))
+        if requested_device == "cuda":
+            reference_indices = [index for pair in self.reference_pairs for index in pair]
+            coordinate_indices = [index for pair in self.coordinate_pairs for index in pair]
+            target_angle = self.target_angle
+            policy = self.degenerate_reference_policy
+
+            def orient(batch, torch):
+                reference_columns = torch.as_tensor(reference_indices, device=batch.device)
+                coordinate_columns = torch.as_tensor(coordinate_indices, device=batch.device)
+                references = batch.index_select(1, reference_columns).reshape(-1, 2, 2)
+                source, target = references[:, 0], references[:, 1]
+                dx, dy = target[:, 0] - source[:, 0], target[:, 1] - source[:, 1]
+                degenerate = (dx == 0) & (dy == 0)
+                if policy == "error" and torch.any(degenerate).item():
+                    raise ValueError("Orientation reference points coincide")
+                theta = target_angle - torch.atan2(-dy, -dx)
+                if policy == "identity":
+                    theta = torch.where(degenerate, torch.zeros_like(theta), theta)
+                cosine, sine = torch.cos(theta).unsqueeze(1), torch.sin(theta).unsqueeze(1)
+                coordinates = batch.index_select(1, coordinate_columns).reshape(
+                    len(batch), len(self.coordinate_pairs), 2)
+                x, y = coordinates[..., 0], coordinates[..., 1]
+                rotated = torch.stack((x * cosine - y * sine,
+                                       x * sine + y * cosine), dim=-1)
+                batch[:, coordinate_columns] = rotated.reshape(len(batch), -1)
+
+            context.data = _apply_pose_gpu(context.data, orient, context.progress_callback)
+            return context
         values = [[float(value) for value in row] for row in context.data]
         required_indices = [index for pair in (*self.reference_pairs, *self.coordinate_pairs)
                             for index in pair]

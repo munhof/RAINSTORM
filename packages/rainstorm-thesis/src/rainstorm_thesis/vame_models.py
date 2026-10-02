@@ -25,7 +25,7 @@ class VAMENativeModel:
             "learning_rate": 0.001,
             "kld_weight": 0.5,
             "seed": 156,
-            "device": "cpu",
+            "device": "auto",
             **dict(config or {}),
         }
         for key in ("n_states", "latent_dim", "hidden_dim", "epochs", "batch_size", "seed"):
@@ -38,6 +38,10 @@ class VAMENativeModel:
         self.checkpoint = None
         self._resume_state = None
         self._training_state = None
+        self._progress_callback = None
+
+    def set_progress_callback(self, callback):
+        self._progress_callback = callback
 
     def fit_predict(self, inputs, constraints=()):
         return self._fit_predict(inputs, constraints)
@@ -58,8 +62,10 @@ class VAMENativeModel:
                 "RAINSTORM's vame-native worker dependencies."
             ) from error
 
+        progress_options = ({'progress_callback': getattr(self, '_progress_callback', None)}
+                            if getattr(self, '_progress_callback', None) is not None else {})
         if checkpoint is None and self._resume_state is None:
-            self.checkpoint = train_native_vame(inputs, self.config)
+            self.checkpoint = train_native_vame(inputs, self.config, **progress_options)
         else:
             def record_checkpoint(state):
                 self._training_state = deepcopy(state)
@@ -70,6 +76,7 @@ class VAMENativeModel:
                 self.config,
                 resume_state=deepcopy(self._resume_state),
                 checkpoint=record_checkpoint,
+                **progress_options,
             )
         self._resume_state = None
         predictions = self.checkpoint.pop("labels")
@@ -109,7 +116,9 @@ class VAMENativeModel:
                 "Native VAME prediction needs NumPy, PyTorch, and scikit-learn."
             ) from error
 
-        labels, embeddings = predict_native_vame(inputs, self.checkpoint)
+        progress_options = ({'progress_callback': getattr(self, '_progress_callback', None)}
+                            if getattr(self, '_progress_callback', None) is not None else {})
+        labels, embeddings = predict_native_vame(inputs, self.checkpoint, **progress_options)
         return ModelOutput(
             predictions=labels,
             metadata={
