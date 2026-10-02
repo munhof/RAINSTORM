@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from math import ceil
 from time import monotonic
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import torch
@@ -98,10 +100,44 @@ def _report_batch(callback, *, phase, label, completed, total, batch_size, start
 
 def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=None,
                       progress_callback=None) -> dict:
+    storage = config.get("window_storage", "memory")
+    if storage not in {"memory", "mapped"}:
+        raise ValueError("window_storage must be memory or mapped")
+    if storage == "memory":
+        return _train_native_vame_values(inputs, config, resume_state=resume_state,
+                                        checkpoint=checkpoint, progress_callback=progress_callback)
+    if not len(inputs):
+        raise ValueError("Native VAME expects nonempty pose windows")
+    first = np.asarray(inputs[0], dtype=np.float32)
+    if first.ndim != 2 or not all(first.shape):
+        raise ValueError("Native VAME expects (observations, window, features) pose windows")
+    batch_size = max(1, int(config.get("batch_size", 256)))
+    with TemporaryDirectory(prefix="rainstorm-vame-windows-") as directory:
+        mapped = np.lib.format.open_memmap(Path(directory) / "windows.npy", mode="w+",
+                                          dtype=np.float32, shape=(len(inputs), *first.shape))
+        started = monotonic()
+        info = dict(phase='materializing', label='Preparando ventanas en almacenamiento temporal',
+                    total=len(inputs), batch_size=batch_size, started=started, device='cpu')
+        _report_batch(progress_callback, completed=0, **info)
+        for start in range(0, len(inputs), batch_size):
+            end = min(start + batch_size, len(inputs))
+            chunk = np.asarray(inputs[start:end], dtype=np.float32)
+            if chunk.shape != (end-start, *first.shape) or not np.isfinite(chunk).all():
+                raise ValueError("Native VAME windows must be rectangular and finite")
+            mapped[start:end] = chunk
+            _report_batch(progress_callback, completed=end, **info)
+        mapped.flush()
+        return _train_native_vame_values(mapped, config, resume_state=resume_state,
+                                        checkpoint=checkpoint, progress_callback=progress_callback)
+
+
+def _train_native_vame_values(inputs, config, *, resume_state=None, checkpoint=None,
+                              progress_callback=None):
     values = np.asarray(inputs, dtype=np.float32)
     if values.ndim != 3 or not values.shape[0] or not values.shape[1] or not values.shape[2]:
         raise ValueError("Native VAME expects (observations, window, features) pose windows")
-    if not np.isfinite(values).all():
+    if any(not np.isfinite(values[start:start + 4096]).all()
+           for start in range(0, len(values), 4096)):
         raise ValueError("Native VAME input contains missing or non-finite pose values")
     if config["n_states"] > len(values):
         raise ValueError("n_states cannot exceed the number of training windows")
@@ -128,6 +164,8 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
         requested_training_config = dict(training_config)
         saved_training_config.setdefault("rnn_backend", "auto")
         requested_training_config.setdefault("rnn_backend", "auto")
+        saved_training_config.setdefault("window_storage", "memory")
+        requested_training_config.setdefault("window_storage", "memory")
         device_changed = (
             saved_training_config.get("device") != requested_training_config.get("device")
         )

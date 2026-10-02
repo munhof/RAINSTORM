@@ -235,3 +235,19 @@ A bounded forward/backward check with batch 256 succeeded on gfx1103 after the
 automatic backend produced a GPU Hang. This is a diagnostic mitigation, not proof
 of full-training stability. Fatal worker signals preserve last observed batch,
 epoch and saved checkpoint; observed batches are not continuation checkpoints.
+
+### Window storage
+
+Native VAME accepts `window_storage=memory` (default) or `mapped`.
+Mapped storage writes float32 windows to a temporary NPY file by training batch,
+then keeps a CPU tensor view and transfers only the current batch to GPU.
+Conversion and finite checks avoid allocating another full window array.
+The temporary directory is removed on normal completion and Python exceptions.
+A hard process abort can leave the directory behind; it is not a checkpoint.
+The setting is saved in the recipe and continuation configuration.
+
+On 2026-10-02, both storage modes completed the two-session biological diagnostic
+with 8192 frames per session, original 20-frame windows and batch 256 on GPU.
+The seeded regression compares embeddings and training history exactly.
+This isolates a working smaller biological workload; it does not prove that
+mapped storage resolves the full-dataset driver fault.

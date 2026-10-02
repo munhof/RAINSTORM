@@ -72,6 +72,9 @@ def register(catalog) -> None:
                         "GPU AMD con ROCm."
                     ),
                 },
+                "window_storage": {"type": "string", "default": "memory",
+                                   "enum": ["memory", "mapped"],
+                                   "description": "mapped guarda las ventanas temporalmente en disco y las lee por lotes."},
                 "rnn_backend": {"type": "string", "default": "auto",
                                 "enum": ["auto", "native"],
                                 "description": "native evita MIOpen/cuDNN en las GRU; conserva cómputo GPU."},

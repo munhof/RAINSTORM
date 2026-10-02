@@ -1414,3 +1414,26 @@ def test_native_vame_stops_before_backward_when_loss_is_nonfinite(monkeypatch):
     assert events[-1]['status'] == 'failed'
     assert events[-1]['batch_step'] == 1
     assert events[-1]['failure_kind'] == 'nonfinite_loss'
+
+
+def test_native_vame_mapped_windows_preserve_training_and_clean_temporary_files(monkeypatch, tmp_path):
+    pytest.importorskip('torch')
+    pytest.importorskip('sklearn')
+    import numpy as np
+    import tempfile
+    from rainstorm_thesis import vame_native_runtime as runtime
+    monkeypatch.setattr(tempfile, 'tempdir', str(tmp_path))
+    values = np.arange(48, dtype=np.float32).reshape(8, 3, 2) / 48
+    config = dict(n_states=2, latent_dim=2, hidden_dim=4, epochs=1, batch_size=2,
+                  learning_rate=0.001, kld_weight=0.5, seed=7, device='cpu', num_threads=1)
+    memory = runtime.train_native_vame(values.tolist(), config)
+    original = runtime.np.asarray
+    def bounded_conversion(value, *args, **kwargs):
+        if isinstance(value, list) and len(value) == len(values):
+            pytest.fail('Mapped storage must not convert all windows at once')
+        return original(value, *args, **kwargs)
+    monkeypatch.setattr(runtime.np, 'asarray', bounded_conversion)
+    mapped = runtime.train_native_vame(values.tolist(), dict(config, window_storage='mapped'))
+    np.testing.assert_array_equal(memory['embeddings'], mapped['embeddings'])
+    assert memory['training_history'] == mapped['training_history']
+    assert not list(tmp_path.iterdir())
