@@ -87,6 +87,7 @@ class VAMENativeModel:
             predictions=predictions,
             metadata={
                 "semantics": "model-local VAME state IDs; IDs may permute between runs",
+                "discretizer_scope": "shared_training_model",
                 "backend": "rainstorm_native_vame",
                 "latent_dim": self.config["latent_dim"],
                 "n_states": self.config["n_states"],
@@ -124,6 +125,7 @@ class VAMENativeModel:
             predictions=labels,
             metadata={
                 "semantics": "model-local VAME state IDs; IDs may permute between runs",
+                "discretizer_scope": "shared_training_model",
                 "backend": "rainstorm_native_vame",
                 "embeddings": embeddings,
             },
@@ -348,6 +350,10 @@ class VAMEOfficialModel:
             predictions=list(self._labels),
             metadata={
                 "semantics": "model-local VAME motif IDs; IDs may permute between runs",
+                "discretizer_scope": (
+                    "session_local" if official_config.get("individual_segmentation",
+                        self.config["config_kwargs"].get("individual_segmentation", False))
+                    else "shared_training_model"),
                 "backend": "vame_py_official",
                 "project_name": self.config["project_name"],
                 "project_dir": str(project_directory),

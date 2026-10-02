@@ -502,7 +502,9 @@ def test_native_vame_adapter_calls_scientific_runtime(monkeypatch):
 
     assert output.predictions == [0, 1]
     assert output.metadata["backend"] == "rainstorm_native_vame"
+    assert output.metadata["discretizer_scope"] == "shared_training_model"
     assert replay.predictions == [1, 0]
+    assert replay.metadata["discretizer_scope"] == "shared_training_model"
     assert len(calls) == 1
 
 
@@ -540,7 +542,8 @@ def test_native_vame_saved_run_can_infer_with_its_fitted_state(tmp_path, monkeyp
     assert infer(result, [values[1]], tmp_path, catalog) == [1]
 
 
-def test_official_vame_adapter_calls_official_pipeline_and_maps_labels(tmp_path, monkeypatch):
+@pytest.mark.parametrize('individual', [False, True])
+def test_official_vame_adapter_calls_official_pipeline_and_maps_labels(tmp_path, monkeypatch, individual):
     import io
     import sys
     import types
@@ -618,12 +621,14 @@ def test_official_vame_adapter_calls_official_pipeline_and_maps_labels(tmp_path,
     model = VAMEOfficialModel({
         "pose_paths": [str(pose)],
         "working_directory": str(tmp_path / "official"),
-        "config_kwargs": {"time_window": 3},
+        "config_kwargs": {"time_window": 3, "individual_segmentation": individual},
     })
 
     output = model.fit_predict([[0.0], [1.0], [2.0]])
     assert output.predictions == [None, 2, None]
     assert output.metadata["backend"] == "vame_py_official"
+    assert output.metadata["discretizer_scope"] == (
+        "session_local" if individual else "shared_training_model")
     assert output.metadata["prediction_mask"] == [False, True, False]
     with pytest.raises(ValueError, match="registered pose files and session metadata"):
         model.predict([[0.0], [1.0], [2.0]])
