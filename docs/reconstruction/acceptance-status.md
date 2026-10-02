@@ -19,7 +19,9 @@ This is a verification record, not a declaration of complete scientific reconstr
   a new plan instead of an unchanged retry.
 - Biological-data reconstruction submitted as study 8, plan revision 64,
   job `2aa9db52-4524-4f24-8644-b16c4c6423fe`: GPU, native GRU backend, 25 epochs.
-  Its initial preparation completed and training emitted batch progress.
+  Its initial preparation completed; training emitted one batch and then
+  aborted with GPU Hang/SIGABRT. The native backend has not resolved stability
+  on the real reconstruction workload. The failed run remains preserved.
 
 ## Acceptance still open
 
