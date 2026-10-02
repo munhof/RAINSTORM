@@ -222,3 +222,16 @@ semánticas compartidas entre corridas.
 - Las revisiones y asociaciones de datos se versionan. El bloqueo independiente
   de correcciones aceptadas y la restauración automática desde un ZIP exportado
   siguen pendientes. El ZIP de evidencia y sus hashes ya se pueden descargar.
+
+### GRU backend selection
+
+Native VAME accepts `rnn_backend=auto` (existing behavior) or `native`.
+`native` disables the MIOpen/cuDNN GRU path with PyTorch backend flags while
+keeping tensors and computation on the selected device. The choice is part of
+the model configuration, checkpoints and inference bundle. Use a new versioned
+plan to change it; checkpoint compatibility checks still apply.
+
+A bounded forward/backward check with batch 256 succeeded on gfx1103 after the
+automatic backend produced a GPU Hang. This is a diagnostic mitigation, not proof
+of full-training stability. Fatal worker signals preserve last observed batch,
+epoch and saved checkpoint; observed batches are not continuation checkpoints.

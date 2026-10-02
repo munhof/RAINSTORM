@@ -72,6 +72,9 @@ def register(catalog) -> None:
                         "GPU AMD con ROCm."
                     ),
                 },
+                "rnn_backend": {"type": "string", "default": "auto",
+                                "enum": ["auto", "native"],
+                                "description": "native evita MIOpen/cuDNN en las GRU; conserva cómputo GPU."},
                 "num_threads": {"type": "integer", "minimum": 1, "default": 2},
             },
         },

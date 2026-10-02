@@ -1339,3 +1339,16 @@ def test_native_vame_reports_training_and_inference_batches():
     predict_native_vame(values, trained, progress_callback=events.append)
     assert events[-1]['batch_step'] == events[-1]['batch_total'] == 4
     assert events[-1]['batch_eta_seconds'] == 0
+
+
+def test_native_vame_can_select_native_rnn_backend():
+    pytest.importorskip('torch')
+    import torch
+    from rainstorm_thesis.vame_native_runtime import NativeVAMENetwork
+    model = NativeVAMENetwork(2, 3, 2, 4, rnn_backend='native')
+    output, mu, logvar = model(torch.zeros(2, 3, 2), sample=False)
+    output.square().mean().backward()
+    assert output.shape == (2, 3, 2)
+    assert model.rnn_backend == 'native'
+    with pytest.raises(ValueError):
+        NativeVAMENetwork(2, 3, 2, 4, rnn_backend='invalid')

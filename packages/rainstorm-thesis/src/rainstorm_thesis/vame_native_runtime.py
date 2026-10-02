@@ -17,8 +17,11 @@ import sklearn
 
 
 class NativeVAMENetwork(nn.Module):
-    def __init__(self, feature_dim: int, sequence_len: int, latent_dim: int, hidden_dim: int):
+    def __init__(self, feature_dim: int, sequence_len: int, latent_dim: int, hidden_dim: int, rnn_backend="auto"):
         super().__init__()
+        if rnn_backend not in {"auto", "native"}:
+            raise ValueError("rnn_backend must be auto or native")
+        self.rnn_backend = rnn_backend
         self.sequence_len = sequence_len
         self.latent_dim = latent_dim
         self.encoder = nn.GRU(feature_dim, hidden_dim, batch_first=True, bidirectional=True)
@@ -28,8 +31,14 @@ class NativeVAMENetwork(nn.Module):
         self.decoder = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
         self.output = nn.Linear(hidden_dim, feature_dim)
 
+    def _run_gru(self, layer, values):
+        if self.rnn_backend == "native":
+            with torch.backends.cudnn.flags(enabled=False):
+                return layer(values)
+        return layer(values)
+
     def encode(self, values):
-        _, hidden = self.encoder(values)
+        _, hidden = self._run_gru(self.encoder, values)
         encoded = torch.cat((hidden[-2], hidden[-1]), dim=-1)
         return self.mu(encoded), self.logvar(encoded)
 
@@ -39,7 +48,7 @@ class NativeVAMENetwork(nn.Module):
         repeated = self.latent_to_hidden(latent).unsqueeze(1).expand(
             -1, self.sequence_len, -1
         )
-        decoded, _ = self.decoder(repeated)
+        decoded, _ = self._run_gru(self.decoder, repeated)
         return self.output(decoded), mu, logvar
 
 
@@ -103,6 +112,7 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
     model = NativeVAMENetwork(
         feature_dim=values.shape[2], sequence_len=values.shape[1],
         latent_dim=config["latent_dim"], hidden_dim=config["hidden_dim"],
+        rnn_backend=config.get("rnn_backend", "auto"),
     ).to(device)
     # Keep the complete source array on CPU; only the active batch moves to the device.
     tensor = torch.as_tensor(values)
@@ -251,6 +261,7 @@ def predict_native_vame(inputs, checkpoint: dict, *, progress_callback=None):
     model = NativeVAMENetwork(
         expected["feature_dim"], expected["sequence_len"],
         config["latent_dim"], config["hidden_dim"],
+        rnn_backend=config.get("rnn_backend", "auto"),
     ).to(device)
     state = {name: torch.as_tensor(value) for name, value in checkpoint["model_state"].items()}
     model.load_state_dict(state)

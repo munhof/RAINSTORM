@@ -26,6 +26,7 @@ class VAMENativeModel:
             "kld_weight": 0.5,
             "seed": 156,
             "device": "auto",
+            "rnn_backend": "auto",
             **dict(config or {}),
         }
         for key in ("n_states", "latent_dim", "hidden_dim", "epochs", "batch_size", "seed"):
