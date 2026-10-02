@@ -126,6 +126,8 @@ def train_native_vame(inputs, config: dict, *, resume_state=None, checkpoint=Non
     if resume_state is not None:
         saved_training_config = dict(resume_state.get("training_config") or {})
         requested_training_config = dict(training_config)
+        saved_training_config.setdefault("rnn_backend", "auto")
+        requested_training_config.setdefault("rnn_backend", "auto")
         device_changed = (
             saved_training_config.get("device") != requested_training_config.get("device")
         )

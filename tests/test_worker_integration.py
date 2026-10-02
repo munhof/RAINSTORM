@@ -1371,3 +1371,21 @@ def test_pose_filter_and_windows_report_real_observations_without_changing_bound
         assert events[-1]['batch_step'] == events[-1]['batch_total']
         if isinstance(step, TemporalPoseWindows):
             assert output.data == []
+
+
+def test_native_vame_resumes_legacy_checkpoint_with_explicit_auto_backend():
+    pytest.importorskip('torch')
+    pytest.importorskip('sklearn')
+    import numpy as np
+    from rainstorm_thesis.vame_native_runtime import train_native_vame
+    values = np.arange(48, dtype=np.float32).reshape(8, 3, 2) / 48
+    config = dict(n_states=2, latent_dim=2, hidden_dim=4, epochs=1, batch_size=2,
+                  learning_rate=0.001, kld_weight=0.5, seed=7, device='cpu', num_threads=1)
+    saved = []
+    train_native_vame(values, config, checkpoint=saved.append)
+    checkpoint = saved[-1]
+    assert 'rnn_backend' not in checkpoint['training_config']
+    resumed = train_native_vame(values, dict(config, rnn_backend='auto'), resume_state=checkpoint)
+    assert len(resumed['labels']) == len(values)
+    with pytest.raises(ValueError, match='incompatible'):
+        train_native_vame(values, dict(config, rnn_backend='native'), resume_state=checkpoint)
