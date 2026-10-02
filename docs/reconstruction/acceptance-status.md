@@ -4,10 +4,10 @@ This is a verification record, not a declaration of complete scientific reconstr
 
 ## Verified
 
-- STORM with the RAINSTORM plugin available: 247 tests passed, including 11
+- STORM with the RAINSTORM plugin available: 251 tests passed, including 12
   headless browser tests. Command from the STORM checkout:
   `PYTHONPATH=../RAINSTORM/packages/rainstorm-thesis/src:../RAINSTORM/src .venv/bin/pytest -q --tb=short`.
-- Scientific adapter regression tests in the ROCm worker: 43 passed, 4 skipped
+- Scientific adapter regression tests in the ROCm worker: 44 passed, 4 skipped
   with GPU availability disabled for CPU regression checks.
 - Native GRU backend: 30 consecutive forward/backward batches on GPU, batch 256,
   synthetic windows of 15 frames and 30 coordinates, hidden dimension 128.
@@ -72,7 +72,13 @@ The supervised requirements lock also installed successfully there. All three
 Containerfiles now use that lock before installing the supervised package
 without dependency resolution; its regression failed before the fix and all
 9 scaffolding tests pass afterwards. The built image predates this Containerfile
-fix; fresh CUDA/ROCm builds and full clean-workspace browser usage remain open.
+fix; fresh CUDA/ROCm builds remain open.
+
+This same image also migrated an empty workspace and started Studio on an
+isolated port. Headless Chromium created a study and loaded data, preparation,
+flow, models, jobs, evidence, comparison and reports with HTTP 200. No existing
+study database or artifacts were mounted. This verifies initial installation
+and navigation, not an end-to-end scientific experiment in that fresh workspace.
 
 - Completion and checkpoint recovery of the full native biological training.
 - Final official VAME reconstruction on the registered historical partition.
