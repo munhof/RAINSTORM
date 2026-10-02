@@ -33,7 +33,9 @@ RUN uv sync --locked --inexact \
     && uv python install 3.9 \
     && uv venv --python 3.9 /opt/workspace/RAINSTORM/supervised-runtime \
     && uv pip install --python /opt/workspace/RAINSTORM/supervised-runtime/bin/python \
-        /opt/workspace/RAINSTORM/packages/rainstorm-supervised
+        -r /opt/workspace/RAINSTORM/packages/rainstorm-supervised/requirements.lock \
+    && uv pip install --python /opt/workspace/RAINSTORM/supervised-runtime/bin/python \
+        --no-deps /opt/workspace/RAINSTORM/packages/rainstorm-supervised
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONPATH=/opt/workspace/RAINSTORM/src:/opt/workspace/RAINSTORM/packages/rainstorm-thesis/src:/opt/workspace/STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio/src:/opt/workspace/STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine/src \

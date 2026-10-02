@@ -8,6 +8,24 @@ trabajo, no al abrir Studio.
 
 ## Arrancar Studio y el worker con Podman Compose
 
+### Checkout nuevo con STORM fijado
+
+Para esta versión de RAINSTORM, usá el commit de STORM
+`76e09bd7ccad74bf63c339f35353741bb32f3142`. Desde el directorio padre de un
+checkout nuevo de RAINSTORM, sin otro checkout de STORM existente:
+
+```bash
+git clone https://github.com/munhof/STORM.git STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
+git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach 76e09bd7ccad74bf63c339f35353741bb32f3142
+cd STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
+podman-compose -f compose.yaml -f ../RAINSTORM/compose.storm-plugin.yaml up -d --build
+```
+
+La construcción usa sólo esos dos repositorios; no requiere un checkout de
+`Tesis_Facu`. Los datos científicos externos se registran después en Studio.
+La receta fija STORM por commit; los entornos científicos tienen sus propios
+locks. La descarga de imágenes base y paquetes necesita acceso a internet.
+
 Desde la raíz del checkout de STORM, aplicá el overlay de RAINSTORM. El compose
 construye Studio y el worker científico, monta el plugin y conserva ambos
 servicios en segundo plano:

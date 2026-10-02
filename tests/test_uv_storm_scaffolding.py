@@ -12,6 +12,14 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_worker_images_install_supervised_dependencies_from_existing_lock():
+    for name in ("Containerfile.storm-worker", "Containerfile.storm-worker.cuda",
+                 "Containerfile.storm-worker.rocm"):
+        source = (ROOT / name).read_text(encoding="utf-8")
+        assert "-r /opt/workspace/RAINSTORM/packages/rainstorm-supervised/requirements.lock" in source
+        assert "--no-deps /opt/workspace/RAINSTORM/packages/rainstorm-supervised" in source
+
+
 def test_vame_worker_lock_is_scoped_to_linux_cpu_deployment():
     project = tomllib.loads(
         (ROOT / "envs" / "vame_worker" / "pyproject.toml").read_text(
