@@ -11,12 +11,12 @@ trabajo, no al abrir Studio.
 ### Checkout nuevo con STORM fijado
 
 Para esta versión de RAINSTORM, usá el commit de STORM
-`76e09bd7ccad74bf63c339f35353741bb32f3142`. Desde el directorio padre de un
+`69208dad2b3fcbdf532774f223abeb4e315f59d6`. Desde el directorio padre de un
 checkout nuevo de RAINSTORM, sin otro checkout de STORM existente:
 
 ```bash
 git clone https://github.com/munhof/STORM.git STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
-git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach 76e09bd7ccad74bf63c339f35353741bb32f3142
+git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach 69208dad2b3fcbdf532774f223abeb4e315f59d6
 cd STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
 podman-compose -f compose.yaml -f ../RAINSTORM/compose.storm-plugin.yaml up -d --build
 ```

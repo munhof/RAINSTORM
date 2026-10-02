@@ -178,8 +178,9 @@ como conductas compartidas entre corridas.
 - VAME oficial requiere sesiones completas, continuas y sin frames reservados.
 - Implementar un importador del ZIP que reconstruya el estudio en otro workspace;
   la exportación de evidencia ya está disponible.
-- Extender las pruebas de teclado más allá del editor de preparación y revisar
-  el viewport reducido en el timeline, comparación y reportes.
+- Completar la revisión de teclado y viewport reducido del timeline. Preparación,
+  selección de comparación y tablas de reportes ya tienen pruebas de navegador
+  a 390 píxeles.
 
 ## Entornos de ejecución
 

@@ -4,7 +4,7 @@ This is a verification record, not a declaration of complete scientific reconstr
 
 ## Verified
 
-- STORM with the RAINSTORM plugin available: 251 tests passed, including 12
+- STORM with the RAINSTORM plugin available: 259 tests passed, including 12
   headless browser tests. Command from the STORM checkout:
   `PYTHONPATH=../RAINSTORM/packages/rainstorm-thesis/src:../RAINSTORM/src .venv/bin/pytest -q --tb=short`.
 - Scientific adapter regression tests in the ROCm worker: 44 passed, 4 skipped
@@ -56,6 +56,21 @@ No bootloader settings have been changed. A container restart cannot switch
 the host kernel. The LTS comparison is a diagnostic, not a promised fix.
 
 ## Acceptance still open
+
+Current integration pin: STORM `69208dad2b3fcbdf532774f223abeb4e315f59d6`.
+The worker guide uses this commit for new installations. Its preparation
+checkpoints preserve validated steps separately for training and evaluation,
+including fitted values, observation indices, metadata and stage previews.
+Regression tests cover interruption between steps, incomplete publication and
+reserved evaluation observations. They do not prove recovery inside a batch.
+
+Artifact serialization writes directly to a temporary file and hashes in
+bounded blocks. Updating an existing artifact writes a payload named by its
+hash before publishing the replacement manifest. Tests verify that interrupted
+serialization or manifest publication keeps the prior artifact loadable;
+the bundle export includes the payload selected by the manifest. Legacy
+manifests without a payload filename still use `payload.pkl`. Real host power
+cuts have not been verified.
 
 Clean committed copies of RAINSTORM `65b416b` and STORM `76e09bd` passed all
 8 scaffolding tests. All COPY inputs for the CPU, CUDA and ROCm Containerfiles
