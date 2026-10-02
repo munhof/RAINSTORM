@@ -125,6 +125,9 @@ hasta que el investigador confirme esa correspondencia.
 
 ## Modelos y comparaciones
 
+La [procedencia supervisada recuperada](supervised-provenance.md) distingue
+la receta histórica de exploración del origen aún desconocido de los pesos.
+
 El registro de Studio incluye cuatro adapters:
 
 - `vame_native` entrena el VAE GRU de RAINSTORM y agrupa el espacio latente con
