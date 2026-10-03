@@ -38,7 +38,10 @@
     },
     "example_simple": {
       "path": "examples/models/trained_models/example_simple.keras",
-      "input_shape": [null, 12],
+      "input_shape": [
+        null,
+        12
+      ],
       "output": "binary probability; threshold is a separately versioned decision",
       "training_population": "unknown",
       "training_recipe": "not present in supplied checkout",
@@ -48,7 +51,11 @@
     },
     "example_wide": {
       "path": "examples/models/trained_models/example_wide.keras",
-      "input_shape": [null, 7, 12],
+      "input_shape": [
+        null,
+        7,
+        12
+      ],
       "output": "binary probability; threshold is a separately versioned decision",
       "training_population": "unknown",
       "training_recipe": "not present in supplied checkout",
@@ -56,5 +63,24 @@
       "architecture_status": "reconstructed weights reproduce saved model outputs",
       "inference_status": "verified in isolated TensorFlow 2.10.1 environment"
     }
+  },
+  "input_contract_version": "1",
+  "reconstruction_differences": {
+    "recorded_at": "2026-10-02",
+    "native": [
+      "Anatomical and velocity filters not ported and verified",
+      "PCHIP interpolation and edge filling not verified",
+      "Median 5 and Gaussian smoothing not ported and verified",
+      "Units, axes, ROI, frame mapping and trainer equivalence pending",
+      "Native 20 frames are not established equivalent to official time_window 19"
+    ],
+    "official": [
+      "Internal preparation only; complete session sources required",
+      "Final preset uses KMeans and learning_rate 0.0005; historical results not verified"
+    ],
+    "supervised": [
+      "Verified input signatures: simple 12, wide 7 x 12",
+      "Training provenance and binary task mapping remain unknown"
+    ]
   }
 }

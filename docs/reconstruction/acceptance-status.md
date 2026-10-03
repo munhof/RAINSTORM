@@ -106,3 +106,20 @@ and navigation, not an end-to-end scientific experiment in that fresh workspace.
   the reconstruction README.
 
 For current job state, use Studio rather than treating this dated record as live progress.
+
+## Entrega de contratos, 2026-10-02
+
+Los contratos de entrada y el resolver están implementados y cubiertos por
+regresiones de preflight, serialización lazy y preservación de entradas.
+Esto no cierra reconstrucción, entrenamiento final, estabilidad GPU, checkpoint
+histórico ni comparación científica. [Backlog definitivo](../plans/02_plan_backlog_estudios_20261002T220735.md).
+
+Pruebas de esta entrega: suite RAINSTORM 85 aprobadas y 21 omitidas por runtimes
+opcionales; STORM 255 aprobadas y 1 fallo previo reproducido con código anterior
+(retención histórica, ST-05). MkDocs estricto y enlaces pasan. Las pruebas no
+verifican entrenamiento final ni estabilidad GPU.
+
+La copia aislada de los cambios publicables de STORM, excluyendo modificaciones
+locales anteriores, pasó 256 pruebas sin fallos (tests de navegador excluidos).
+La regresión local previa de retención se conserva fuera de los commits publicados.
+Versión STORM compatible con este plugin: `e08b9a4059e22191ed4dbfb6f31d9897a5368e05`.

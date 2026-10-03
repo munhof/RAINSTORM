@@ -200,3 +200,38 @@ RAINSTORM_RECONSTRUCTION_ROOT=/ruta/a/los/datos \
 uv run --project envs/vame_worker --locked python -m pytest -q \
   tests/test_reconstruction.py::test_native_vame_pose_ego_trains_and_reloads_on_biological_h5_sessions
 ```
+
+## Contratos de entradas v1 (implementados, 2026-10-02)
+
+| Modelo | Entrada | Preparación | Requisito |
+|---|---|---|---|
+| `vame_native` | pose temporal | externa | `pose.temporal_windows`, en plan o procedencia materializada validada |
+| `vame_official` | fuentes de sesiones completas | interna | rechaza cualquier paso externo; worker verifica fuentes/particiones/reservas |
+| `supervised_simple` | características | externa | shape por observación `12` |
+| `supervised_wide` | ventana de características | externa | shape por observación `7 × 12` |
+
+`rainstorm_thesis.plugin.register` declara `Component.input_contract` y registra
+`rainstorm_thesis.preparation.resolve_preparation_steps`. El resolver conserva
+selección por nombres, índices por etapa y dispositivos sin mutar entradas.
+Studio mantiene un puente compatible y fallback legacy hasta RS-10. Los controles
+y previews científicos completos siguen pendientes de migración.
+
+`storm.contracts.validate_plan` se comparte entre Python y Studio antes de encolar;
+no carga datasets completos ni importa PyTorch/TensorFlow. Datos sin schema/shape o
+prueba de sesión completa reciben advertencias y comprobación posterior en worker.
+Pasos arbitrarios no permiten inferir científicamente su shape de salida.
+Las ventanas ya preparadas exigen identidad verificada de fuente/receta/versiones;
+`preapplied_steps` por sí solo no basta. Los planes históricos siguen legibles.
+
+La receta nativa sigue siendo parcial: faltan verificación/portado de filtrado
+anatómico y velocidad, PCHIP/bordes, mediana 5 y Gaussian smoothing, además de
+unidades/ejes/ventanas/ROI y configuración final del trainer. La receta oficial
+final declara KMeans, learning_rate 0.0005 y steps=[]; sus resultados históricos
+no están reconstruidos por declarar ese preset. Las ventanas nativas de20 frames
+no se equiparan automáticamente con time_window19 oficial. Pesos supervisados
+con firmas conocidas todavía necesitan procedencia de entrenamiento y mapping
+binario justificado frente a las12 categorías humanas.
+
+GPU Hang se sigue por RS-08 de forma independiente del preprocesado. Esta entrega
+no ejecuta entrenamientos, no reinicia workers ni cambia la revisión71/corridas72–75.
+[Backlog y evidencia fechada](../plans/02_plan_backlog_estudios_20261002T220735.md).

@@ -11,12 +11,12 @@ trabajo, no al abrir Studio.
 ### Checkout nuevo con STORM fijado
 
 Para esta versión de RAINSTORM, usá el commit de STORM
-`69208dad2b3fcbdf532774f223abeb4e315f59d6`. Desde el directorio padre de un
+`e08b9a4059e22191ed4dbfb6f31d9897a5368e05`. Desde el directorio padre de un
 checkout nuevo de RAINSTORM, sin otro checkout de STORM existente:
 
 ```bash
 git clone https://github.com/munhof/STORM.git STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
-git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach 69208dad2b3fcbdf532774f223abeb4e315f59d6
+git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach e08b9a4059e22191ed4dbfb6f31d9897a5368e05
 cd STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
 podman-compose -f compose.yaml -f ../RAINSTORM/compose.storm-plugin.yaml up -d --build
 ```
@@ -269,3 +269,14 @@ with 8192 frames per session, original 20-frame windows and batch 256 on GPU.
 The seeded regression compares embeddings and training history exactly.
 This isolates a working smaller biological workload; it does not prove that
 mapped storage resolves the full-dataset driver fault.
+
+## Actualización coordinada de contratos
+
+Esta rama de RAINSTORM usa `storm.contracts` v1; instalarla junto con el commit
+STORM fijado arriba. La referencia anterior `69208dad2b3fcbdf532774f223abeb4e315f59d6`
+corresponde a una entrega histórica sin esta interfaz y no soporta este plugin actualizado.
+Los entornos ML y sus locks conservan su configuración. No reiniciar workers con jobs
+activos; coordinar actualización entre trabajos. La primera entrega sólo verifica
+preflight y contratos; no ejecuta entrenamiento ni prueba estabilidad GPU.
+
+Ver [requisitos por modelo y diferencias científicas](README.md).
