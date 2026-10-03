@@ -535,6 +535,9 @@ def test_native_vame_saved_run_can_infer_with_its_fitted_state(tmp_path, monkeyp
         "model": "vame_native", "connector": "json_records",
         "config": {"n_states": 2, "latent_dim": 1, "epochs": 1},
         "preapplied_steps": ["pose.temporal_windows"],
+        "data_summary": {"preparation": {"validated": True,
+            "fingerprint": "sha256:" + "a" * 64,
+            "resolved_steps": [{"type": "pose.temporal_windows"}]}},
         "data": {"inputs": values, "train": [0, 1], "test": []},
     }, tmp_path, "native-vame", catalog)
 
@@ -1037,6 +1040,9 @@ def test_native_vame_resumes_training_from_a_persisted_epoch_checkpoint(tmp_path
         "model": "vame_native",
         "connector": "test.pose_windows",
         "preapplied_steps": ["pose.temporal_windows"],
+        "data_summary": {"preparation": {"validated": True,
+            "fingerprint": "sha256:" + "a" * 64,
+            "resolved_steps": [{"type": "pose.temporal_windows"}]}},
         "config": {
             "n_states": 2,
             "latent_dim": 2,

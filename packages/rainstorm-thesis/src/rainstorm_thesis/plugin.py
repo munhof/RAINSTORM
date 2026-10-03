@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 
 from storm.suite import Component
+from storm.contracts import ModelInputContract
+from .preparation import resolve_preparation_steps
 
 from .data import load_dlc_csv, load_dlc_h5
 from .example_benchmarks import nor_test_benchmark
@@ -34,6 +36,7 @@ def _build_supervised_model(config):
 
 def register(catalog) -> None:
     """Add H5 ingestion, pose preparation, VAME models, and SVG views."""
+    catalog.preparation_resolver = resolve_preparation_steps
     catalog.connectors["dlc_h5"] = load_dlc_h5
     catalog.connectors["dlc_csv"] = load_dlc_csv
     for step in (SelectPoseCoordinates, RecenterPose, OrientPose,
@@ -81,6 +84,8 @@ def register(catalog) -> None:
                 "num_threads": {"type": "integer", "minimum": 1, "default": 2},
             },
         },
+        input_contract=ModelInputContract(input_type="temporal_pose", preparation="external",
+                                          required_steps=("pose.temporal_windows",)),
     ))
     catalog.register(Component(
         "vame_official",
@@ -142,6 +147,8 @@ def register(catalog) -> None:
                 },
             },
         },
+        input_contract=ModelInputContract(input_type="pose_sources", preparation="internal",
+                                          granularity="session"),
     ))
     catalog.register_recipe_preset({
         "id": "vame_native_pose_ego",
@@ -312,4 +319,6 @@ def register(catalog) -> None:
                 },
             },
             version="1",
+            input_contract=ModelInputContract(input_type="features", preparation="external",
+                shape=(12,) if name == "supervised_simple" else (7, 12)),
         ))
