@@ -11,12 +11,12 @@ trabajo, no al abrir Studio.
 ### Checkout nuevo con STORM fijado
 
 Para esta versión de RAINSTORM, usá el commit de STORM
-`e08b9a4059e22191ed4dbfb6f31d9897a5368e05`. Desde el directorio padre de un
+`5cf6fb6fdade497c5fbffd2fb1d63cafffbbde3e`. Desde el directorio padre de un
 checkout nuevo de RAINSTORM, sin otro checkout de STORM existente:
 
 ```bash
 git clone https://github.com/munhof/STORM.git STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
-git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach e08b9a4059e22191ed4dbfb6f31d9897a5368e05
+git -C STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling checkout --detach 5cf6fb6fdade497c5fbffd2fb1d63cafffbbde3e
 cd STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling
 podman-compose -f compose.yaml -f ../RAINSTORM/compose.storm-plugin.yaml up -d --build
 ```
@@ -280,3 +280,83 @@ activos; coordinar actualización entre trabajos. La primera entrega sólo verif
 preflight y contratos; no ejecuta entrenamiento ni prueba estabilidad GPU.
 
 Ver [requisitos por modelo y diferencias científicas](README.md).
+## Configuración reflectable y KPMS — entrega 2026-10-03
+
+Actualizar STORM y RAINSTORM de forma coordinada desde la rama
+`contracts-backlog-20261002`. Esta ampliación requiere `Component.descriptor`,
+`Component.config_validator`, validación anidada y `storm.graphs` en STORM.
+El pin vigente al comienzo de esta guía identifica la versión compatible.
+Las revisiones históricas se conservan.
+
+Studio importa únicamente los descriptores livianos del plugin. Para inspeccionar
+la biblioteca instalada, ejecutar dentro de su worker:
+
+```bash
+python -m rainstorm_thesis.reflect_backend vame > vame-backend.json
+python -m rainstorm_thesis.reflect_backend kpms > kpms-backend.json
+```
+
+La exportación registra firmas reales, parámetros, versión del paquete y hash
+del archivo de implementación; VAME también exporta su esquema Pydantic. Esto no
+entrena ni construye modelos. El esquema editable está acotado explícitamente
+por RAINSTORM; `**kwargs` no autoriza parámetros arbitrarios ni cambios de algoritmo.
+
+| Adapter | Entrada/preparación | Controles disponibles |
+|---|---|---|
+| `vame_native` | Ventanas temporales externas, con procedencia verificada si están materializadas | GRU/LSTM encoder, capas/direcciones, decoder, latent/hidden, Adam/AdamW/SGD, KL y KMeans |
+| `vame_official` | Fuentes originales de sesiones completas; preparación interna | `config_kwargs` tipado, `preprocessing_options`, `trainset_options`: keypoints y split interno `mode_1`/`mode_2` |
+| `kpms_native` | Frames de pose con nombres y confianza; preparación interna por secuencia | PCA + AR-HMM mínimo, estados, dimensión/varianza PCA, orden AR, kappa y sticky prior |
+| `kpms_official` | Frames de pose con confianza y límites de sesión/segmento | PCA oficial antes de init, AR-HMM y keypoint-SLDS opcional, iteraciones de ajuste/inferencia y anatomía |
+
+VAME 0.14.4 verificado no admite `test_session_names` ni split `by_session`.
+La selección de sesiones pertenece al dataset de cada rama; exponer una API
+más nueva exige actualizar worker y descriptor juntos. Las particiones de
+`create_trainset` son internas al subconjunto de entrenamiento
+de STORM; nunca sustituyen la reserva de evaluación. KPMS divide secuencias al
+cambiar sesión, segmento o continuidad de frames. El adapter nativo interpola
+separadamente cada secuencia; no atraviesa esos límites. La selección de puntos
+requiere nombres declarados; no se deduce compatibilidad inspeccionando métodos.
+
+VAME nativo tiene un grafo JSON v1 con cableado VAE declarado y puertos tipados.
+Studio permite activar el grafo, editar nodos con teclado y elegir encoder GRU o
+LSTM. El grafo predeterminado conserva pesos/salida de la red previa con la misma
+semilla. No combinar `architecture_graph` con campos `architecture`, `optimizer`
+o `discretizer` no vacíos. Topologías arbitrarias, nuevos losses y redes propias
+se implementan como paquetes Python instalados con un `Component` propio y
+contratos explícitos; el editor general de grafos sigue en ST-09/RS-11.
+
+```python
+from rainstorm_thesis.vame_graph import default_graph
+graph = default_graph()
+next(node for node in graph['nodes'] if node['id'] == 'encoder')['type'] = 'encoder.lstm'
+config = {'architecture_graph': graph, 'latent_dim': 20, 'epochs': 25}
+```
+
+KPMS oficial usa un proyecto UUID distinto por ajuste. Sus etapas full continúan
+desde la iteración AR anterior. No anuncia capacidad de checkpoints STORM ni
+equivalencia con el estudio histórico. El runtime se instala separado (Python
+3.12, keypoint-moseq 0.6.8, jax-moseq 0.3.4, JAX/JAXlib 0.6.2, NumPy 1.26.4).
+Los imports de KPMS/PyTorch/JAX ocurren únicamente durante ejecución/reflexión en
+el worker. Los tests de CPU pequeños no certifican estabilidad GPU, reconstrucción
+del benchmark ni reproducción de resultados científicos.
+
+
+Para KPMS, desde la raíz de RAINSTORM:
+
+```bash
+cd envs/kpms_worker
+uv sync --locked --group test
+JAX_PLATFORMS=cpu uv run storm-studio worker
+```
+
+Configurar el mismo workspace, artefactos y plugin que Studio antes de iniciar
+el worker. Coordinar la actualización cuando los jobs activos hayan terminado.
+`JAX_PLATFORMS=cpu` selecciona la verificación CPU; las dependencias oficiales
+pueden emitir un aviso de plugin CUDA ausente al importar. No certifica GPU.
+Para inferencia KPMS usar `predict_with_context` o aplicar el modelo sobre datos
+registrados; se requiere preservar nombres, confianza, sesiones y frames.
+
+Este perfil es una alternativa de runtime para jobs KPMS. La cola actual no
+selecciona workers por backend: coordinar el uso del perfil con la cola y no
+mezclar jobs que requieran dependencias ausentes. El routing automático y
+preflight de recursos se mantienen como trabajo posterior en RS-08/ST-10.

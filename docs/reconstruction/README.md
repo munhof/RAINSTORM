@@ -235,3 +235,13 @@ binario justificado frente a las12 categorías humanas.
 GPU Hang se sigue por RS-08 de forma independiente del preprocesado. Esta entrega
 no ejecuta entrenamientos, no reinicia workers ni cambia la revisión71/corridas72–75.
 [Backlog y evidencia fechada](../plans/02_plan_backlog_estudios_20261002T220735.md).
+
+
+## Ampliación de configuración, 2026-10-03
+
+[Guía de configuración/reflexión](worker-adapters.md#configuracion-reflectable-y-kpms-entrega-2026-10-03):
+controles VAME por etapa, grafo nativo y adapters KPMS diferenciados.
+[RS-12 nativo](https://github.com/munhof/RAINSTORM/issues/13) y
+[RS-13 oficial](https://github.com/munhof/RAINSTORM/issues/14) mantienen abierta
+la aceptación científica y la verificación de restauración. El historial anterior
+sigue siendo evidencia fechada; la integración no modifica sus recetas ni pesos.

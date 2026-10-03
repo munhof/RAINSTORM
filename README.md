@@ -321,3 +321,14 @@ _Thanks for exploring RAINSTORM!_
 ![mouse_exploring](https://res.cloudinary.com/ddj6ndshz/image/upload/v1761739038/mouse_exploring_nhdroe.gif)
 
 ---
+
+
+### Configuración de VAME y KPMS
+
+El plugin STORM incluye contratos, entradas por rama, configuración anidada y un
+grafo VAE editable con encoder GRU/LSTM. KPMS ofrece dos adapters distintos:
+`kpms_native` (PCA + AR-HMM mínimo) y `kpms_official` (keypoint-moseq 0.6.8).
+La reflexión se ejecuta dentro del worker; Studio consume descriptores livianos.
+Ver [controles, límites y entornos](docs/reconstruction/worker-adapters.md#configuracion-reflectable-y-kpms-entrega-2026-10-03)
+y [aceptación](docs/reconstruction/acceptance-status.md). Estos adapters no prueban
+la reconstrucción científica del estudio ni resuelven el GPU Hang histórico.

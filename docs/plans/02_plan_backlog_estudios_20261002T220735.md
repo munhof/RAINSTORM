@@ -16,23 +16,23 @@ histórica; este seguimiento y los issues definitivos rigen la primera entrega.
 | RS-04 | P1 | [Portar y verificar filtrado, interpolación y suavizado de Tesis_Facu](https://github.com/munhof/RAINSTORM/issues/5) | Pendiente |
 | RS-05 | P1 | [Verificar unidades, ejes, ventanas, ROI y alineación por etapa](https://github.com/munhof/RAINSTORM/issues/6) | Pendiente |
 | RS-06 | P1 | [Recuperar configuración final del VAME nativo y verificar equivalencia](https://github.com/munhof/RAINSTORM/issues/7) | Pendiente |
-| RS-07 | P1 | [Aislar proyectos oficiales y comprobar fuentes, particiones y discretizador](https://github.com/munhof/RAINSTORM/issues/8) | Pendiente |
+| RS-07 | P1 | [Aislar proyectos oficiales y comprobar fuentes, particiones y discretizador](https://github.com/munhof/RAINSTORM/issues/8) | Proyectos aislados implementados; aceptación científica pendiente |
 | RS-08 | P1 | [Preflight de recursos y diagnóstico escalonado de estabilidad GPU](https://github.com/munhof/RAINSTORM/issues/9) | Pendiente |
 | RS-09 | P1 | [Inferencia del benchmark protegido y correspondencia de tareas](https://github.com/munhof/RAINSTORM/issues/10) | Pendiente |
 | RS-10 | P2 | [Migrar controles y previews científicos al plugin RAINSTORM](https://github.com/munhof/RAINSTORM/issues/11) | Pendiente |
-| RS-11 | P2 | [Configuración gráfica de variantes de modelos soportadas](https://github.com/munhof/RAINSTORM/issues/12) | Pendiente |
+| RS-11 | P2 | [Configuración gráfica de variantes de modelos soportadas](https://github.com/munhof/RAINSTORM/issues/12) | Controles y grafo VAE inicial implementados; extensión general pendiente |
 
 | ID | Prioridad | Issue definitivo | Estado de esta entrega |
 |---|---|---|---|
 | ST-01 | P0 | [Implementar contratos de entrada y validación compartida antes de encolar](https://github.com/munhof/STORM/issues/2) | Implementado con regresiones; issue abierto para revisión |
-| ST-02 | P0 | [Separar plan activo de variantes de ejecución y evitar ramas heredadas](https://github.com/munhof/STORM/issues/3) | Pendiente |
-| ST-03 | P0 | [Permitir dataset y preparación propios por rama](https://github.com/munhof/STORM/issues/4) | Pendiente |
+| ST-02 | P0 | [Separar plan activo de variantes de ejecución y evitar ramas heredadas](https://github.com/munhof/STORM/issues/3) | Implementado con regresiones (2026-10-03); aceptación abierta |
+| ST-03 | P0 | [Permitir dataset y preparación propios por rama](https://github.com/munhof/STORM/issues/4) | Implementado con regresiones (2026-10-03); aceptación abierta |
 | ST-04 | P1 | [Reutilizar preparación compatible y mostrar motivos de cache hit/miss](https://github.com/munhof/STORM/issues/5) | Pendiente |
 | ST-05 | P1 | [Retener checkpoints históricos y validar continuidad](https://github.com/munhof/STORM/issues/6) | Pendiente |
 | ST-06 | P1 | [Normalizar avance por fase, lote y sesión; separar heartbeat de progreso](https://github.com/munhof/STORM/issues/7) | Pendiente |
 | ST-07 | P1 | [Validar tareas, métricas y compatibilidad antes de comparar](https://github.com/munhof/STORM/issues/8) | Pendiente |
-| ST-08 | P2 | [Extender catálogo y hosts de UI mediante descriptores de plugins](https://github.com/munhof/STORM/issues/9) | Pendiente |
-| ST-09 | P2 | [Editor gráfico con validación, teclado y equivalencia con especificaciones Python](https://github.com/munhof/STORM/issues/10) | Pendiente |
+| ST-08 | P2 | [Extender catálogo y hosts de UI mediante descriptores de plugins](https://github.com/munhof/STORM/issues/9) | Base de descriptores y grafo VAE; editor general pendiente |
+| ST-09 | P2 | [Editor gráfico con validación, teclado y equivalencia con especificaciones Python](https://github.com/munhof/STORM/issues/10) | Base de descriptores y grafo VAE; editor general pendiente |
 | ST-10 | P2 | [SDK de extensiones y publicación opcional de código en workers aislados](https://github.com/munhof/STORM/issues/11) | Pendiente |
 | ST-11 | P3 | [Dashboards con gráficos, tablas y evidencia sincronizada](https://github.com/munhof/STORM/issues/12) | Pendiente |
 | ST-12 | P3 | [Exportación, restauración y aceptación desde instalación limpia](https://github.com/munhof/STORM/issues/13) | Pendiente |
@@ -44,14 +44,15 @@ ST-11 depende de alineación y comparación verificadas. GPU Hang se trata por
 RS-08 independientemente del preprocesado. Dependencias detalladas y aceptación
 están en cada issue.
 
-La primera entrega implementa contratos y preflight; reconstrucción científica,
-plan activo/variantes, inputs por rama, editor gráfico y dashboards permanecen
-pendientes. No se modifican revisiones históricas ni se inician entrenamientos.
+La entrega del 2026-10-02 implementó contratos y preflight. La ampliación del
+2026-10-03 agrega planes/variantes, inputs por rama y grafo VAE inicial.
+Reconstrucción científica, editor general y dashboards siguen pendientes.
+Se conservan las revisiones históricas; se verifican sólo fixtures CPU pequeñas.
 
 Contratos v1 y límites están en [reconstrucción](../reconstruction/README.md),
 [worker/compatibilidad](../reconstruction/worker-adapters.md) y
 [aceptación](../reconstruction/acceptance-status.md).
-[Protocolo compartido](../../CONTRIBUTING.md).
+[Protocolo compartido](https://github.com/munhof/RAINSTORM/blob/contracts-backlog-20261002/CONTRIBUTING.md).
 
 ## Propuesta original fechada (histórica, anterior a la entrega de contratos)
 
@@ -150,3 +151,27 @@ Para VAME nativo, ofrecer dos rutas claramente identificadas: artefacto parcial 
 7. Extender un pipeline gráficamente y registrar un componente Python sin cambiar código específico de STORM Studio.
 
 No declarar cierre por navegación HTTP200, test sintético GPU o inferencia de modelos de diagnóstico. Se requiere evidencia del recorrido científico completo.
+
+
+## Entrega de configuración reflectable — 2026-10-03
+
+- ST-02: las variantes de ejecución ya no heredan ramas ni desplazan el plan editable.
+  El historial previo se conserva y se reconoce mediante sus relaciones originales.
+- ST-03: `branch_overrides` permite datos/pasos y referencias de preparación propios.
+  Las referencias se resuelven por estudio; preflight usa metadata por rama y no
+  crea jobs si alguna de las ramas a ejecutar falla.
+- ST-08/09: implementados descriptores, validación anidada, grafos tipados y host
+  inicial de configuración de nodos con controles accesibles. El editor general
+  de pipelines y topologías arbitrarias permanece pendiente.
+- RS-07/11: VAME expone arquitectura/optimizador/discretizador nativos, encoder
+  GRU/LSTM mediante grafo y controles oficiales por etapa. Proyectos oficiales
+  usan identidades únicas; se verificó la API instalada 0.14.4 (split mode_1/mode_2).
+- [RS-12](https://github.com/munhof/RAINSTORM/issues/13): KPMS nativo portado y fixture CPU;
+  algoritmo declarado explícitamente como PCA + AR-HMM mínimo.
+- [RS-13](https://github.com/munhof/RAINSTORM/issues/14): KPMS oficial 0.6.8, PCA real antes
+  de init, fases AR/full, inferencia alineada y entorno aislado con lock.
+
+Se realizaron sólo fixtures CPU pequeñas y mocks, sin entrenar estudios históricos,
+modificar sus revisiones ni reiniciar workers activos. El GPU Hang sigue en RS-08;
+reconstrucción, comparación, dashboards y aceptación científica permanecen abiertos.
+Los issues no se cierran por esta evidencia parcial.

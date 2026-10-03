@@ -123,3 +123,28 @@ La copia aislada de los cambios publicables de STORM, excluyendo modificaciones
 locales anteriores, pasó 256 pruebas sin fallos (tests de navegador excluidos).
 La regresión local previa de retención se conserva fuera de los commits publicados.
 Versión STORM compatible con este plugin: `e08b9a4059e22191ed4dbfb6f31d9897a5368e05`.
+
+
+## Configuración reflectable y modelos — 2026-10-03
+
+- La copia exacta publicable de STORM pasó 276 tests sin navegador. La suite de
+  navegador pasó 17 tests, incluido el grafo VAME. Los cambios locales de la tarjeta
+  GPU y de retención histórica se conservaron fuera de esta publicación; la
+  corrección local del resolver inline y su regresión se incorporaron por ser
+  necesarias para preparar ramas sin receta guardada.
+- VAME worker CPU: 52 tests aprobados, 4 omitidos; se verificaron GRU/LSTM,
+  arquitectura predeterminada idéntica, capas/direcciones, AdamW e inferencia.
+- KPMS aislado CPU: 7 tests aprobados. Incluyen PCA + AR-HMM nativo, PCA oficial
+  real, fases AR-only/full, inferencia de 24 frames, restauración pickle, límites
+  de sesiones, reserva y rechazo de cambio de orden de puntos corporales.
+- Se exportaron firmas reales de vame-py 0.14.4 y keypoint-moseq 0.6.8; se confirmó
+  que VAME instalado no acepta selección test_session_names ni split by_session.
+- MkDocs estricto para STORM y para las páginas RAINSTORM (config temporal de
+  navegación), más git diff --check, sin errores.
+
+Estas fixtures no demuestran equivalencia histórica, aceptación del benchmark,
+restauración de bundles completos en instalación limpia ni estabilidad GPU.
+Los checkpoints nuevos rechazan cambios de identidad del componente; la
+retención histórica sigue abierta en ST-05. Nuevos seguimientos:
+[RS-12 nativo](https://github.com/munhof/RAINSTORM/issues/13),
+[RS-13 oficial](https://github.com/munhof/RAINSTORM/issues/14).
