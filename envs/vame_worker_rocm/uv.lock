@@ -1515,14 +1515,17 @@ vame-official = [
 requires-dist = [
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6" },
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4" },
+    { name = "keypoint-moseq", marker = "python_full_version < '3.13' and extra == 'kpms-official'", specifier = "==0.6.8" },
     { name = "matplotlib", marker = "extra == 'kpms'", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'vame'", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.25" },
+    { name = "numpy", marker = "extra == 'kpms-official'", specifier = "<2" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "scikit-learn", marker = "extra == 'kpms'", specifier = ">=1.5" },
+    { name = "scikit-learn", marker = "extra == 'kpms-native'", specifier = ">=1.5" },
     { name = "scikit-learn", marker = "extra == 'vame'", specifier = ">=1.5" },
     { name = "scikit-learn", marker = "extra == 'vame-native'", specifier = ">=1.8.0" },
     { name = "scipy", specifier = ">=1.10" },
@@ -1530,9 +1533,10 @@ requires-dist = [
     { name = "storm-traceable", editable = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine" },
     { name = "tables", specifier = ">=3.9" },
     { name = "torch", marker = "extra == 'vame-native'", specifier = ">=2.11.0" },
-    { name = "vame-py", marker = "python_full_version >= '3.12' and sys_platform != 'win32' and extra == 'vame-official'", specifier = ">=0.14.0" },
+    { name = "tqdm", marker = "extra == 'kpms-native'", specifier = ">=4.67" },
+    { name = "vame-py", marker = "python_full_version >= '3.12' and sys_platform != 'win32' and extra == 'vame-official'", specifier = "==0.14.4" },
 ]
-provides-extras = ["vame", "vame-native", "vame-official", "kpms", "notebooks", "test"]
+provides-extras = ["vame", "vame-native", "vame-official", "kpms-native", "kpms-official", "kpms", "notebooks", "test"]
 
 [[package]]
 name = "rainstorm-vame-worker-rocm"

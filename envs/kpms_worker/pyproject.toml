@@ -1,0 +1,25 @@
+[project]
+name = "rainstorm-kpms-worker"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "rainstorm-thesis[kpms_native,kpms_official]",
+    "storm-studio==0.1.0a0",
+    "keypoint-moseq==0.6.8",
+    "jax-moseq==0.3.4",
+    "jax==0.6.2",
+    "jaxlib==0.6.2",
+    "numpy==1.26.4",
+    "matplotlib==3.8.4",
+]
+
+[dependency-groups]
+test = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+rainstorm-thesis = { path = "../../packages/rainstorm-thesis", editable = true }
+storm-studio = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-studio" }
+storm-traceable = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine", editable = true }

@@ -26,8 +26,10 @@ vame_native = [
     "torch>=2.11.0",
 ]
 vame_official = [
-    "vame-py>=0.14.0; python_version >= '3.12' and sys_platform != 'win32'",
+    "vame-py==0.14.4; python_version >= '3.12' and sys_platform != 'win32'",
 ]
+kpms_native = ["scikit-learn>=1.5", "tqdm>=4.67"]
+kpms_official = ["keypoint-moseq==0.6.8; python_version < '3.13'", "numpy<2"]
 kpms = [
     "matplotlib>=3.8",
     "scikit-learn>=1.5",
@@ -51,3 +53,6 @@ testpaths = ["../../tests"]
 
 [tool.uv.sources]
 storm-traceable = { path = "../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/packages/storm-engine", editable = true }
+
+[tool.setuptools.package-data]
+rainstorm_thesis = ["THESIS_LICENSE"]

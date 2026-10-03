@@ -810,7 +810,7 @@ def test_official_vame_extra_is_limited_to_supported_worker_python():
     official_dependencies = manifest["project"]["optional-dependencies"]["vame_official"]
 
     assert official_dependencies == [
-        "vame-py>=0.14.0; python_version >= '3.12' and sys_platform != 'win32'"
+        "vame-py==0.14.4; python_version >= '3.12' and sys_platform != 'win32'"
     ]
 
 

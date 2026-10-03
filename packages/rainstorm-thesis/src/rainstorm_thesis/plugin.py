@@ -8,6 +8,11 @@ from pathlib import Path
 from storm.suite import Component
 from storm.contracts import ModelInputContract
 from .preparation import resolve_preparation_steps
+from .descriptors import (PREPROCESSING_OPTIONS, TRAINSET_OPTIONS, vame_config_properties,
+                          kpms_schema, scientific_descriptor, validate_official_config)
+from .kpms_models import KPMSNativeModel, KPMSOfficialModel
+from .vame_graph import (ARCHITECTURE_SCHEMA, OPTIMIZER_SCHEMA, DISCRETIZER_SCHEMA,
+                         NODE_DESCRIPTORS, SLOTS, default_graph, validate_native_config)
 
 from .data import load_dlc_csv, load_dlc_h5
 from .example_benchmarks import nor_test_benchmark
@@ -82,10 +87,20 @@ def register(catalog) -> None:
                                 "enum": ["auto", "native"],
                                 "description": "native evita MIOpen/cuDNN en las GRU; conserva cómputo GPU."},
                 "num_threads": {"type": "integer", "minimum": 1, "default": 2},
+                "architecture": {**ARCHITECTURE_SCHEMA, 'default': {}},
+                "optimizer": {**OPTIMIZER_SCHEMA, 'default': {}},
+                "discretizer": {**DISCRETIZER_SCHEMA, 'default': {}},
+                "architecture_graph": {'type': 'object', 'default': {}},
             },
         },
         input_contract=ModelInputContract(input_type="temporal_pose", preparation="external",
                                           required_steps=("pose.temporal_windows",)),
+        config_validator=validate_native_config,
+        descriptor={**scientific_descriptor('torch', 'recurrent VAE + KMeans (GRU/LSTM)',
+            ['encoder', 'latent', 'decoder', 'loss', 'optimizer', 'discretizer'],
+            ['data', 'architecture', 'training', 'discretizer']),
+            'graph': {'field': 'architecture_graph', 'default': default_graph(),
+                      'nodes': NODE_DESCRIPTORS, 'slots': SLOTS}},
     ))
     catalog.register(Component(
         "vame_official",
@@ -126,8 +141,11 @@ def register(catalog) -> None:
                     "type": "string", "default": "nose",
                     "description": "Referencia de orientación del preprocesado interno de VAME.",
                 },
+                "preprocessing_options": PREPROCESSING_OPTIONS,
+                "trainset_options": TRAINSET_OPTIONS,
                 "config_kwargs": {
                     "type": "object",
+                    "properties": vame_config_properties(),
                     "description": (
                         "Parámetros de entrenamiento, preprocesado y segmentación de VAME. "
                         "Este adapter usa su preprocesado interno y no acepta pasos "
@@ -149,7 +167,19 @@ def register(catalog) -> None:
         },
         input_contract=ModelInputContract(input_type="pose_sources", preparation="internal",
                                           granularity="session"),
+        config_validator=validate_official_config,
+        descriptor=scientific_descriptor('vame-py', 'official VAME',
+            ['preprocessing', 'create_trainset', 'train_model', 'segment_session'],
+            ['data', 'architecture', 'training', 'discretizer']),
     ))
+    for name, builder, official in [('kpms_native', KPMSNativeModel, False),
+                                     ('kpms_official', KPMSOfficialModel, True)]:
+        catalog.register(Component(name, builder, ('group', 'infer'), kpms_schema(official),
+            input_contract=ModelInputContract(input_type='pose_frames', preparation='internal'),
+            descriptor=scientific_descriptor('keypoint-moseq' if official else 'numpy/sklearn',
+                'official keypoint-SLDS' if official else 'PCA + minimal AR-HMM',
+                ['pose', 'PCA', 'AR-HMM', 'keypoint-SLDS'] if official else ['pose', 'PCA', 'AR-HMM'],
+                ['data', 'architecture', 'training'])))
     catalog.register_recipe_preset({
         "id": "vame_native_pose_ego",
         "name": "VAME nativo · pose_ego",

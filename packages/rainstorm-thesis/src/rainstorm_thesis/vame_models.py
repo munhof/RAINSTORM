@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import importlib
 import shutil
+from uuid import uuid4
 
 from storm import ModelOutput
 
@@ -29,9 +30,14 @@ class VAMENativeModel:
             "rnn_backend": "auto",
             **dict(config or {}),
         }
+        from .vame_graph import compile_graph, validate_native_config
+        validate_native_config(self.config)
+        if self.config.get('architecture_graph'):
+            self.config.update(compile_graph(self.config['architecture_graph']))
         for key in ("n_states", "latent_dim", "hidden_dim", "epochs", "batch_size", "seed"):
-            if type(self.config[key]) is not int or self.config[key] < 1:
-                raise ValueError(f"{key} must be a positive integer")
+            minimum = 0 if key == "seed" else 1
+            if type(self.config[key]) is not int or self.config[key] < minimum:
+                raise ValueError(f"{key} must be an integer >= {minimum}")
         if self.config["n_states"] < 2:
             raise ValueError("n_states must be at least 2")
         if self.config["learning_rate"] <= 0 or self.config["kld_weight"] < 0:
@@ -40,6 +46,9 @@ class VAMENativeModel:
         self._resume_state = None
         self._training_state = None
         self._progress_callback = None
+
+    def configuration_snapshot(self):
+        return deepcopy(self.config)
 
     def set_progress_callback(self, callback):
         self._progress_callback = callback
@@ -165,6 +174,8 @@ class VAMEOfficialModel:
             **supplied,
             "config_kwargs": official_recipe,
         }
+        from .descriptors import validate_official_config
+        validate_official_config(self.config)
         if self.config["working_directory"] == ".storm/rainstorm/vame_official":
             workspace = Path(os.environ.get("STORM_WORKSPACE", ".storm")).expanduser()
             self.config["working_directory"] = str(
@@ -187,6 +198,9 @@ class VAMEOfficialModel:
         self._prediction_window = None
         self._session_lengths = None
         self._embeddings = None
+
+    def configuration_snapshot(self):
+        return deepcopy(self.config)
 
     def bind_data(self, data: Mapping, observation_indices: list[int]) -> None:
         """Bind only complete, unreserved training sessions to official VAME."""
@@ -273,6 +287,11 @@ class VAMEOfficialModel:
             ) from error
 
         working_directory = Path(self.config["working_directory"]).expanduser().resolve()
+        # Every fit owns its project. Never reuse a previous run's files or split.
+        requested_name = self.config['project_name']
+        if not requested_name or Path(requested_name).name != requested_name:
+            raise ValueError('project_name must be a simple directory name')
+        self.config['project_name'] = f'{requested_name}_{uuid4().hex}'
         project_directory = working_directory / self.config["project_name"]
         working_directory.mkdir(parents=True, exist_ok=True)
         config_kwargs = dict(self.config["config_kwargs"])
@@ -295,12 +314,15 @@ class VAMEOfficialModel:
         if isinstance(official_config, dict):
             official_config = _plain_vame_config(official_config, np)
             official_config.update(config_kwargs)
+            official_config['project_name'] = self.config['project_name']
+            official_config['project_path'] = str(project_directory)
             official_config = _plain_vame_config(official_config, np)
             vame.write_config(str(config_path), official_config)
         vame.preprocessing(
             config=official_config,
             centered_reference_keypoint=self.config["centered_reference_keypoint"],
             orientation_reference_keypoint=self.config["orientation_reference_keypoint"],
+            **self.config.get("preprocessing_options", {}),
         )
         if isinstance(official_config, dict):
             official_config = _plain_vame_config(official_config, np)
@@ -319,7 +341,7 @@ class VAMEOfficialModel:
             raise ValueError("VAME session names do not match the bound training sessions")
         if sum(self._session_lengths) != len(inputs):
             raise ValueError("Bound VAME session frame counts do not match model inputs")
-        vame.create_trainset(config=official_config)
+        vame.create_trainset(config=official_config, **self.config.get("trainset_options", {}))
         vame.train_model(config=official_config)
         self._ensure_best_model_alias(project_directory)
         if isinstance(official_config, dict):

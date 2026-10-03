@@ -19,19 +19,25 @@ import sklearn
 
 
 class NativeVAMENetwork(nn.Module):
-    def __init__(self, feature_dim: int, sequence_len: int, latent_dim: int, hidden_dim: int, rnn_backend="auto"):
+    def __init__(self, feature_dim: int, sequence_len: int, latent_dim: int, hidden_dim: int, rnn_backend="auto", architecture=None):
         super().__init__()
         if rnn_backend not in {"auto", "native"}:
             raise ValueError("rnn_backend must be auto or native")
         self.rnn_backend = rnn_backend
         self.sequence_len = sequence_len
         self.latent_dim = latent_dim
-        self.encoder = nn.GRU(feature_dim, hidden_dim, batch_first=True, bidirectional=True)
-        self.mu = nn.Linear(hidden_dim * 2, latent_dim)
-        self.logvar = nn.Linear(hidden_dim * 2, latent_dim)
-        self.latent_to_hidden = nn.Linear(latent_dim, hidden_dim)
-        self.decoder = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
-        self.output = nn.Linear(hidden_dim, feature_dim)
+        architecture = architecture or {}
+        self.encoder_bidirectional = architecture.get('encoder_bidirectional', True)
+        decoder_dim = architecture.get('decoder_hidden_dim', hidden_dim)
+        recurrent = {'gru': nn.GRU, 'lstm': nn.LSTM}[architecture.get('encoder_type', 'gru')]
+        self.encoder = recurrent(feature_dim, hidden_dim, batch_first=True,
+            bidirectional=self.encoder_bidirectional, num_layers=architecture.get('encoder_layers', 1))
+        self.mu = nn.Linear(hidden_dim * (2 if self.encoder_bidirectional else 1), latent_dim)
+        self.logvar = nn.Linear(hidden_dim * (2 if self.encoder_bidirectional else 1), latent_dim)
+        self.latent_to_hidden = nn.Linear(latent_dim, decoder_dim)
+        self.decoder = nn.GRU(decoder_dim, decoder_dim, batch_first=True,
+                              num_layers=architecture.get('decoder_layers', 1))
+        self.output = nn.Linear(decoder_dim, feature_dim)
 
     def _run_gru(self, layer, values):
         if self.rnn_backend == "native":
@@ -41,7 +47,9 @@ class NativeVAMENetwork(nn.Module):
 
     def encode(self, values):
         _, hidden = self._run_gru(self.encoder, values)
-        encoded = torch.cat((hidden[-2], hidden[-1]), dim=-1)
+        if isinstance(hidden, tuple):
+            hidden = hidden[0]
+        encoded = torch.cat((hidden[-2], hidden[-1]), dim=-1) if self.encoder_bidirectional else hidden[-1]
         return self.mu(encoded), self.logvar(encoded)
 
     def forward(self, values, *, sample: bool):
@@ -149,10 +157,15 @@ def _train_native_vame_values(inputs, config, *, resume_state=None, checkpoint=N
         feature_dim=values.shape[2], sequence_len=values.shape[1],
         latent_dim=config["latent_dim"], hidden_dim=config["hidden_dim"],
         rnn_backend=config.get("rnn_backend", "auto"),
+        architecture=config.get("architecture", {}),
     ).to(device)
     # Keep the complete source array on CPU; only the active batch moves to the device.
     tensor = torch.as_tensor(values)
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(config["learning_rate"]))
+    optimizer_options = config.get('optimizer', {})
+    optimizer_type = {'adam': torch.optim.Adam, 'adamw': torch.optim.AdamW,
+                      'sgd': torch.optim.SGD}[optimizer_options.get('type', 'adam')]
+    optimizer = optimizer_type(model.parameters(), lr=float(config['learning_rate']),
+                               weight_decay=optimizer_options.get('weight_decay', 0))
     rng = np.random.default_rng(config["seed"])
     input_spec = {"feature_dim": int(values.shape[2]),
                   "sequence_len": int(values.shape[1])}
@@ -276,7 +289,9 @@ def _train_native_vame_values(inputs, config, *, resume_state=None, checkpoint=N
         progress_callback({'phase': 'clustering', 'label': 'Ajustando el discretizador KMeans',
                            'phase_step': None, 'phase_total': None, 'unit_label': None,
                            'device': 'cpu', 'epoch': None})
-    clusterer = KMeans(n_clusters=config["n_states"], random_state=config["seed"], n_init=10)
+    clusterer = KMeans(n_clusters=config["n_states"], random_state=config["seed"],
+                       n_init=config.get('discretizer', {}).get('n_init', 10),
+                       max_iter=config.get('discretizer', {}).get('max_iter', 300))
     labels = clusterer.fit_predict(embeddings)
     return {
         "labels": labels.astype(int).tolist(),
@@ -290,6 +305,8 @@ def _train_native_vame_values(inputs, config, *, resume_state=None, checkpoint=N
             "hidden_dim": config["hidden_dim"],
             "device": str(device),
             "batch_size": config["batch_size"],
+            "architecture": config.get("architecture", {}),
+            "rnn_backend": config.get("rnn_backend", "auto"),
         },
         "training_history": history,
         "seed": int(config["seed"]),
@@ -311,6 +328,7 @@ def predict_native_vame(inputs, checkpoint: dict, *, progress_callback=None):
         expected["feature_dim"], expected["sequence_len"],
         config["latent_dim"], config["hidden_dim"],
         rnn_backend=config.get("rnn_backend", "auto"),
+        architecture=config.get("architecture", {}),
     ).to(device)
     state = {name: torch.as_tensor(value) for name, value in checkpoint["model_state"].items()}
     model.load_state_dict(state)
