@@ -41,6 +41,10 @@ def _build_supervised_model(config):
 
 def register(catalog) -> None:
     """Add H5 ingestion, pose preparation, VAME models, and SVG views."""
+    from .experiment_plugin import register_experiment_nodes
+    register_experiment_nodes(catalog)
+    from .reconstruction_v2 import ReconstructPoseV2
+    catalog.steps.register(ReconstructPoseV2)
     catalog.preparation_resolver = resolve_preparation_steps
     catalog.connectors["dlc_h5"] = load_dlc_h5
     catalog.connectors["dlc_csv"] = load_dlc_csv

@@ -1,5 +1,18 @@
 # Estado de la reconstrucción RAINSTORM + STORM
 
+## Actualización 2026-10-06: aceptación acotada de contextos
+
+La [receta sucesora del estudio 8](study8-context-status.md) completó preparación
+estricta de 64 sesiones, comparación de etapas con Tesis_Facu y una época VAME
+nativo en CPU sobre 256 ventanas deterministas. Produjo 37.743 predicciones de
+validación. Test e historial permanecen intactos. Esta evidencia no certifica
+la equivalencia del experimento histórico ni estabilidad GPU.
+
+Los [parámetros y artefactos](study8-context-acceptance.json) y la
+[comparación real de máscaras/coordenadas](study8-stage-comparison.json) están
+registrados. El plan vigente de contextos es
+[STORM suite-completion](../../../STORM-System-for-Traceable-Orchestration-Reuse-and-Modeling/docs/planning/suite-completion.md).
+
 RAINSTORM aporta los conectores científicos y modelos; STORM Studio registra
 las fuentes, versiones de preparación, ejecuciones y comparaciones. Los datos
 se registran aparte de los modelos. Los hashes identifican los archivos de

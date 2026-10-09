@@ -323,6 +323,7 @@ def predict_native_vame(inputs, checkpoint: dict, *, progress_callback=None):
     if not np.isfinite(values).all():
         raise ValueError("Prediction input contains missing or non-finite pose values")
     config = checkpoint["config"]
+    torch.set_num_threads(max(1, int(config.get("num_threads", 2))))
     device = resolve_device(config.get("device", "cpu"))
     model = NativeVAMENetwork(
         expected["feature_dim"], expected["sequence_len"],

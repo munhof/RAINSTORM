@@ -44,7 +44,8 @@
 La primera entrega declara contratos v1 y valida entradas antes de encolar.
 La reconstrucción científica sigue parcial. Consultar [reconstrucción y diferencias](docs/reconstruction/README.md),
 [worker y versiones compatibles](docs/reconstruction/worker-adapters.md),
-[aceptación](docs/reconstruction/acceptance-status.md) y
+[aceptación](docs/reconstruction/acceptance-status.md),
+[estudio 8 con contextos v2](docs/reconstruction/study8-context-status.md) y
 [backlog enlazado](docs/plans/02_plan_backlog_estudios_20261002T220735.md).
 El [protocolo compartido](CONTRIBUTING.md) requiere una regresión fallida antes del cambio.
 
